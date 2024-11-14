@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	xv1alpha1 "github.com/awslabs/kro/api/v1alpha1"
 	kroclient "github.com/awslabs/kro/internal/client"
@@ -176,7 +177,7 @@ func main() {
 		ctrlrtcontroller.Options{
 			MaxConcurrentReconciles: resourceGroupConcurrentReconciles,
 		},
-	).Complete(reconciler)
+	).Complete(reconcile.AsReconciler[*xv1alpha1.ResourceGroup](mgr.GetClient(), reconciler))
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ResourceGroup")
 		os.Exit(1)

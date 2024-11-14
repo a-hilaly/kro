@@ -17,9 +17,11 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/awslabs/kro/api/v1alpha1"
 	kroclient "github.com/awslabs/kro/internal/client"
@@ -78,54 +80,39 @@ func NewResourceGroupReconciler(
 func (r *ResourceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.ResourceGroup{}).
-		Complete(r)
+		Complete(reconcile.AsReconciler[*v1alpha1.ResourceGroup](mgr.GetClient(), r))
 }
 
-func (r *ResourceGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	rlog := r.log.WithValues("resourcegroup", req.NamespacedName)
+func (r *ResourceGroupReconciler) Reconcile(ctx context.Context, resourcegroup *v1alpha1.ResourceGroup) (ctrl.Result, error) {
+	rlog := r.log.WithValues("resourcegroup", types.NamespacedName{Namespace: resourcegroup.Namespace, Name: resourcegroup.Name})
 	ctx = log.IntoContext(ctx, rlog)
 
-	var resourcegroup v1alpha1.ResourceGroup
-	if err := r.Get(ctx, req.NamespacedName, &resourcegroup); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	if !resourcegroup.DeletionTimestamp.IsZero() {
+		rlog.V(1).Info("ResourceGroup is being deleted")
+		if err := r.cleanupResourceGroup(ctx, resourcegroup); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		rlog.V(1).Info("Setting resourcegroup as unmanaged")
+		if err := r.setUnmanaged(ctx, resourcegroup); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, nil
 	}
 
-	if err := r.reconcile(ctx, &resourcegroup); err != nil {
+	rlog.V(1).Info("Setting resource group as managed")
+	if err := r.setManaged(ctx, resourcegroup); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	rlog.V(1).Info("Syncing resourcegroup")
+	topologicalOrder, resourcesInformation, reconcileErr := r.reconcileResourceGroup(ctx, resourcegroup)
+
+	rlog.V(1).Info("Setting resourcegroup status")
+	if err := r.setResourceGroupStatus(ctx, resourcegroup, topologicalOrder, resourcesInformation, reconcileErr); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *ResourceGroupReconciler) reconcile(ctx context.Context, resourcegroup *v1alpha1.ResourceGroup) error {
-	log, _ := logr.FromContext(ctx)
-
-	if !resourcegroup.DeletionTimestamp.IsZero() {
-		log.V(1).Info("ResourceGroup is being deleted")
-		if err := r.cleanupResourceGroup(ctx, resourcegroup); err != nil {
-			return err
-		}
-
-		log.V(1).Info("Setting resourcegroup as unmanaged")
-		if err := r.setUnmanaged(ctx, resourcegroup); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	log.V(1).Info("Setting resource group as managed")
-	if err := r.setManaged(ctx, resourcegroup); err != nil {
-		return err
-	}
-
-	log.V(1).Info("Syncing resourcegroup")
-	topologicalOrder, resourcesInformation, reconcileErr := r.reconcileResourceGroup(ctx, resourcegroup)
-
-	log.V(1).Info("Setting resourcegroup status")
-	if err := r.setResourceGroupStatus(ctx, resourcegroup, topologicalOrder, resourcesInformation, reconcileErr); err != nil {
-		return err
-	}
-
-	return nil
 }
