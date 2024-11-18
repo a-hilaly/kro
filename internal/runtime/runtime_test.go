@@ -179,7 +179,7 @@ func Test_RuntimeWorkflow(t *testing.T) {
 			},
 			"spec": map[string]interface{}{
 				"selector": map[string]interface{}{
-					"app": "${deployment.spec.selector.app}",
+					"app": "${deployment.spec.selector.app + schema.spec.appName}",
 				},
 			},
 		}),
@@ -195,7 +195,7 @@ func Test_RuntimeWorkflow(t *testing.T) {
 			{
 				FieldDescriptor: variable.FieldDescriptor{
 					Path:                 "spec.selector.app",
-					Expressions:          []string{"deployment.spec.selector.app"},
+					Expressions:          []string{"deployment.spec.selector.app + schema.spec.appName"},
 					StandaloneExpression: true,
 				},
 				Kind:         variable.ResourceVariableKindDynamic,
@@ -1690,6 +1690,9 @@ func Test_evaluateDynamicVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rt := &ResourceGroupRuntime{
+				instance: newTestResource(
+					withObject(map[string]interface{}{}),
+				),
 				expressionsCache:  tt.expressionsCache,
 				resolvedResources: tt.resolvedResources,
 			}

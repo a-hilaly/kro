@@ -123,7 +123,7 @@ var _ = Describe("Conditions", func() {
 							},
 						},
 						"spec": map[string]interface{}{
-							"serviceAccountName": "${serviceAccountA.metadata.name}",
+							"serviceAccountName": "${serviceAccountA.metadata.name + schema.spec.name}",
 							"containers": []interface{}{
 								map[string]interface{}{
 									"name":  "${schema.spec.name}-deployment",
@@ -302,7 +302,7 @@ var _ = Describe("Conditions", func() {
 
 			// Verify deployment specs
 			g.Expect(deploymentB.Spec.Template.Spec.Containers).To(HaveLen(1))
-			g.Expect(deploymentB.Spec.Template.Spec.ServiceAccountName).To(Equal(name + "-a"))
+			g.Expect(deploymentB.Spec.Template.Spec.ServiceAccountName).To(Equal(name + "-a" + name))
 		}, 20*time.Second, time.Second).Should(Succeed())
 
 		// Verify ServiceA is not created
