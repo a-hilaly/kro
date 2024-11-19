@@ -22,6 +22,10 @@ import (
 	"github.com/awslabs/kro/internal/graph/variable"
 )
 
+const (
+	xKubernetesPreserveUnknownFields = "x-kubernetes-preserve-unknown-fields"
+)
+
 // ParseResource extracts CEL expressions from a resource based on
 // the schema. The resource is expected to be a map[string]interface{}.
 //
@@ -86,6 +90,15 @@ func getExpectedType(schema *spec.Schema) string {
 func parseObject(field map[string]interface{}, schema *spec.Schema, path, expectedType string) ([]variable.FieldDescriptor, error) {
 	if expectedType != "object" && (schema.AdditionalProperties == nil || !schema.AdditionalProperties.Allows) {
 		return nil, fmt.Errorf("expected object type or AdditionalProperties allowed for path %s, got %v", path, field)
+	}
+
+	// Look for vendor schema extensions first
+	if len(schema.VendorExtensible.Extensions) > 0 {
+		// If the schema has the x-kubernetes-preserve-unknown-fields extension, we should not
+		// parse the object and return an empty list of expressions.
+		if enabled, ok := schema.VendorExtensible.Extensions[xKubernetesPreserveUnknownFields]; ok && enabled.(bool) {
+			return nil, nil
+		}
 	}
 
 	var expressionsFields []variable.FieldDescriptor
