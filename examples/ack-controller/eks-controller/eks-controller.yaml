@@ -166,8 +166,6 @@ spec:
                 value: ${schema.spec.values.image.deletePolicy}
               - name: ACK_LOG_LEVEL
                 value: ${schema.spec.values.log.level}              
-              ports:
-              - containerPort: 80
   - id: clusterRoleBinding
     template:
       apiVersion: rbac.authorization.k8s.io/v1
