@@ -618,6 +618,21 @@ func TestParserEdgeCases(t *testing.T) {
 			},
 			expectedError: "",
 		},
+		{
+			name: "schema with x-kubernetes-preserve-unknown-fields",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+				},
+				VendorExtensible: spec.VendorExtensible{
+					Extensions: spec.Extensions{
+						"x-kubernetes-preserve-unknown-fields": true,
+					},
+				},
+			},
+			resource:      map[string]interface{}{"name": "John", "age": 30},
+			expectedError: "",
+		},
 	}
 
 	for _, tc := range testCases {
