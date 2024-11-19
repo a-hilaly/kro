@@ -346,6 +346,7 @@ func (rt *ResourceGroupRuntime) evaluateDynamicVariables() error {
 	// and are resolved after all the dependencies are resolved.
 
 	resolvedResources := maps.Keys(rt.resolvedResources)
+	resolvedResources = append(resolvedResources, "schema")
 	env, err := krocel.DefaultEnvironment(krocel.WithResourceIDs(resolvedResources))
 	if err != nil {
 		return err
@@ -373,6 +374,8 @@ func (rt *ResourceGroupRuntime) evaluateDynamicVariables() error {
 			for _, dep := range variable.Dependencies {
 				evalContext[dep] = rt.resolvedResources[dep].Object
 			}
+
+			evalContext["schema"] = rt.instance.Unstructured().Object
 
 			value, err := evaluateExpression(env, evalContext, variable.Expression)
 			if err != nil {
