@@ -24,7 +24,7 @@ spec:
   resources:
     - id: dbinstance
       definition:
-        apiVersion: rds.saervices.k8s.aws/v1alpha1
+        apiVersion: rds.services.k8s.aws/v1alpha1
         kind: DBInstance
         metadata:
           name: ${schema.spec.applicationName}-dbinstance
