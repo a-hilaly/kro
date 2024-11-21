@@ -54,6 +54,8 @@ func parseResource(resource interface{}, schema *spec.Schema, path string) ([]va
 		return parseArray(field, schema, path, expectedType)
 	case string:
 		return parseString(field, schema, path, expectedType)
+	case nil:
+		return nil, nil
 	default:
 		return parseScalarTypes(field, schema, path, expectedType)
 	}
