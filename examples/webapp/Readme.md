@@ -1,9 +1,9 @@
-# kro Application example
+# kro WebApp example
 
-This example creates a ResourceGroup called `App` and then instaciates it with
+This example creates a ResourceGroup called `WebApp` and then instaciates it with
 the default nginx container image.
 
-### Create ResourceGroup called App
+### Create ResourceGroup called WebApp
 
 Apply the RG to your cluster:
 
@@ -14,14 +14,14 @@ kubectl apply -f rg.yaml
 Validate the RG status is Active:
 
 ```
-kubectl get rg app.kro.run
+kubectl get rg webapp.kro.run
 ```
 
 Expected result:
 
 ```
-NAME          APIVERSION   KIND   STATE    AGE
-app.kro.run   v1alpha1     App    Active    6m
+NAME             APIVERSION   KIND     STATE    AGE
+webapp.kro.run   v1alpha1     WebApp   Active   2m13s
 ```
 
 ### Create an Instance of kind App
@@ -35,7 +35,7 @@ kubectl apply -f instance.yaml
 Validate instance status:
 
 ```
-kubectl get apps test-app
+kubectl get webapps test-app
 ```
 
 Expected result:
@@ -79,11 +79,11 @@ Thank you for using nginx.
 Remove the instance:
 
 ```
-kubectl delete apps test-app
+kubectl delete webapps test-app
 ```
 
 Remove the resourcegroup:
 
 ```
-kubectl delete rg app.kro.run
+kubectl delete rg webapp.kro.run
 ```
