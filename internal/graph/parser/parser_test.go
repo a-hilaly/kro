@@ -246,21 +246,6 @@ func TestTypeMismatches(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Null value for non-nullable field",
-			resource: map[string]interface{}{
-				"nonNullableField": nil,
-			},
-			schema: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Type: []string{"object"},
-					Properties: map[string]spec.Schema{
-						"nonNullableField": {SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
 			name: "Nil schema",
 			resource: map[string]interface{}{
 				"field": "value",

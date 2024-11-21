@@ -60,6 +60,18 @@ var _ = Describe("Readiness", func() {
 				map[string]interface{}{
 					"name":     "string",
 					"replicas": "integer",
+					"deployment": map[string]interface{}{
+						"includeAnnotations": "boolean | default=false",
+						"annotations": map[string]interface{}{
+							"app": "string | default=nginx",
+						},
+					},
+					"service": map[string]interface{}{
+						"includeAnnotations": "boolean | default=true",
+						"annotations": map[string]interface{}{
+							"app": "string | default=service",
+						},
+					},
 				},
 				nil,
 			),
@@ -69,6 +81,8 @@ var _ = Describe("Readiness", func() {
 				"kind":       "Deployment",
 				"metadata": map[string]interface{}{
 					"name": "${schema.spec.name}",
+					"annotations": `${schema.spec.deployment.includeAnnotations == true
+								? schema.spec.deployment.annotations : null}`,
 				},
 				"spec": map[string]interface{}{
 					"replicas": "${schema.spec.replicas}",
@@ -105,6 +119,8 @@ var _ = Describe("Readiness", func() {
 				"kind":       "Service",
 				"metadata": map[string]interface{}{
 					"name": "${deployment.metadata.name}",
+					"annotations": `${schema.spec.service.includeAnnotations == true
+								? schema.spec.service.annotations : null}`,
 				},
 				"spec": map[string]interface{}{
 					"selector": map[string]interface{}{
@@ -172,6 +188,16 @@ var _ = Describe("Readiness", func() {
 				"spec": map[string]interface{}{
 					"name":     name,
 					"replicas": replicas,
+					"deployment": map[string]interface{}{
+						"includeAnnotations": false,
+						"annotations":        map[string]interface{}{},
+					},
+					"service": map[string]interface{}{
+						"includeAnnotations": true,
+						"annotations": map[string]interface{}{
+							"app": "service",
+						},
+					},
 				},
 			},
 		}
@@ -198,6 +224,7 @@ var _ = Describe("Readiness", func() {
 			// Verify deployment specs
 			g.Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 			g.Expect(*deployment.Spec.Replicas).To(Equal(int32(replicas)))
+			g.Expect(deployment.Annotations).To(HaveLen(0))
 		}, 20*time.Second, time.Second).Should(Succeed())
 
 		// Verify Service is not created yet
@@ -223,13 +250,18 @@ var _ = Describe("Readiness", func() {
 		}
 		Expect(env.Client.Status().Update(ctx, deployment)).To(Succeed())
 
+		service := &corev1.Service{}
 		// Verify Service is created now
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
 				Name:      name,
 				Namespace: namespace,
-			}, &corev1.Service{})
+			}, service)
 			g.Expect(err).ToNot(HaveOccurred())
+
+			// validate service spec
+			Expect(service.Annotations).To(HaveLen(1))
+			Expect(service.Annotations["app"]).To(Equal("service"))
 		}, 20*time.Second, time.Second).Should(Succeed())
 
 		// Delete instance
