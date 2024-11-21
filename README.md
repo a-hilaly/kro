@@ -86,7 +86,7 @@ kro is Kubernetes native and integrates seamlessly with existing tools to preser
 Development and discussion is coordinated in the [Kubernetes Slack (invite link)][k8s-slack] channel [#kro][kro-channel] channel.
 
 [k8s-slack]: https://communityinviter.com/apps/kubernetes/community
-[kro-channel]: https://kubernetes.slack.com/archives/XXX-TBD
+[kro-channel]: https://kubernetes.slack.com/archives/C081TMY9D6Y
 
 ## Security
 
