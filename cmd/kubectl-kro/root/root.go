@@ -21,6 +21,10 @@ import (
 
 	"github.com/awslabs/kro/cmd/kubectl-kro/generate"
 	"github.com/awslabs/kro/cmd/kubectl-kro/get"
+	"github.com/awslabs/kro/cmd/kubectl-kro/install"
+	packagecmd "github.com/awslabs/kro/cmd/kubectl-kro/package"
+	"github.com/awslabs/kro/cmd/kubectl-kro/publish"
+	"github.com/awslabs/kro/cmd/kubectl-kro/registry"
 	"github.com/awslabs/kro/cmd/kubectl-kro/validate"
 )
 
@@ -30,6 +34,10 @@ func init() {
 	rootCmd.AddCommand(generate.Command)
 	rootCmd.AddCommand(validate.Command)
 	rootCmd.AddCommand(get.Command)
+	rootCmd.AddCommand(packagecmd.Command)
+	rootCmd.AddCommand(registry.Command)
+	rootCmd.AddCommand(publish.Command)
+	rootCmd.AddCommand(install.Command)
 }
 
 var rootCmd = &cobra.Command{

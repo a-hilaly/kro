@@ -31,9 +31,9 @@ import (
 )
 
 var (
-	optScope string
+	optScope             string
 	optResourceGroupFile string
-	optOutputFormat string
+	optOutputFormat      string
 )
 
 func init() {
@@ -58,7 +58,7 @@ var Command = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		
+
 		err = generateRBAC(&rg)
 		if err != nil {
 			return err
@@ -73,7 +73,7 @@ func generateRBAC(rg *v1alpha1.ResourceGroup) error {
 		return nil
 	}
 	restConfig := set.RESTConfig()
-	
+
 	builder, err := graph.NewBuilder(restConfig)
 	if err != nil {
 		return err
@@ -85,11 +85,10 @@ func generateRBAC(rg *v1alpha1.ResourceGroup) error {
 	}
 
 	gvrs := []schema.GroupVersionResource{}
-	for _, id := range processedRG.TopologicalOrder{
+	for _, id := range processedRG.TopologicalOrder {
 		gvrs = append(gvrs, processedRG.Resources[id].GetGroupVersionResource())
 	}
 
-	
 	kroDefaultVerbs := []string{
 		"get",
 		"list",
@@ -108,7 +107,7 @@ func generateRBAC(rg *v1alpha1.ResourceGroup) error {
 	policyRules := []rbacv1.PolicyRule{}
 	for _, group := range resourcesByGroup.groups() {
 		policyRules = append(policyRules, rbacv1.PolicyRule{
-			Verbs: kroDefaultVerbs,
+			Verbs:     kroDefaultVerbs,
 			APIGroups: []string{group},
 			Resources: resourcesByGroup[group],
 		})
@@ -131,7 +130,7 @@ func generateRBAC(rg *v1alpha1.ResourceGroup) error {
 			return err
 		}
 	}
-	
+
 	fmt.Println(string(b))
 	return nil
 }
@@ -145,11 +144,11 @@ var (
 func newClusterRole(metadataName string, policyRules []rbacv1.PolicyRule) rbacv1.ClusterRole {
 	return rbacv1.ClusterRole{
 		TypeMeta: v1.TypeMeta{
-			Kind: "ClusterRole",
+			Kind:       "ClusterRole",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Name: metadataName,
+			Name:        metadataName,
 			Annotations: kroGenLabels,
 		},
 		Rules: policyRules,
@@ -158,12 +157,12 @@ func newClusterRole(metadataName string, policyRules []rbacv1.PolicyRule) rbacv1
 func newRole(namespace string, metadataName string, policyRules []rbacv1.PolicyRule) rbacv1.Role {
 	return rbacv1.Role{
 		TypeMeta: v1.TypeMeta{
-			Kind: "Role",
+			Kind:       "Role",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Name: metadataName,
-			Namespace: namespace,
+			Name:        metadataName,
+			Namespace:   namespace,
 			Annotations: kroGenLabels,
 		},
 		Rules: policyRules,
@@ -173,19 +172,19 @@ func newRole(namespace string, metadataName string, policyRules []rbacv1.PolicyR
 type resourcesByGroup map[string][]string
 
 func (rbg resourcesByGroup) addGVR(gvr schema.GroupVersionResource) {
-	resources, exist := rbg[gvr.Group] 
+	resources, exist := rbg[gvr.Group]
 	if !exist {
 		resources = []string{gvr.Resource}
 		rbg[gvr.Group] = resources
 		return
 	}
-	
+
 	found := false
 	for _, resource := range resources {
 		if resource == gvr.Resource {
 			found = true
 			break
-		} 
+		}
 	}
 
 	if !found {
@@ -204,7 +203,7 @@ func (rbg resourcesByGroup) groups() []string {
 	return groups
 }
 
-func marshalObject(object interface{}, format string) ([]byte, error) {
+func marshalObject(object interface{}, _ string) ([]byte, error) {
 	var b []byte
 	var err error
 	switch optOutputFormat {
