@@ -133,18 +133,28 @@ func runPackage(cmd *cobra.Command, args []string) error {
 }
 
 func createLayer(w io.Writer, filename string, content []byte) (digest.Digest, int64, error) {
-	fmt.Printf("Creating layer with filename: %s\n", filename)
-
 	buf := new(bytes.Buffer)
 	tw := tar.NewWriter(buf)
 
-	// Write the ResourceGroup file into the layer
-	if err := writeTarFile(tw, filename, content); err != nil {
-		return "", 0, fmt.Errorf("failed to write file to layer: %w", err)
+	// Create proper tar header
+	header := &tar.Header{
+		Name: filename,
+		Mode: 0644,
+		Size: int64(len(content)),
+	}
+
+	// Write header properly
+	if err := tw.WriteHeader(header); err != nil {
+		return "", 0, fmt.Errorf("failed to write tar header: %w", err)
+	}
+
+	// Write actual content
+	if _, err := tw.Write(content); err != nil {
+		return "", 0, fmt.Errorf("failed to write content: %w", err)
 	}
 
 	if err := tw.Close(); err != nil {
-		return "", 0, fmt.Errorf("failed to close layer tar: %w", err)
+		return "", 0, fmt.Errorf("failed to close tar writer: %w", err)
 	}
 
 	layerContent := buf.Bytes()
