@@ -138,28 +138,21 @@ func pullResourceGroup(repository, tag, auth string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to get manifest: %s: %s", resp.Status, string(body))
 	}
 
-	// Parse the manifest to get layer digest
+	// Parse the manifest to get the package digest
 	var manifest struct {
-		Layers []struct {
+		Config struct {
 			Digest string `json:"digest"`
-			Size   int64  `json:"size"`
-		} `json:"layers"`
+		} `json:"config"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
 		return nil, fmt.Errorf("failed to decode manifest: %w", err)
 	}
 
-	if len(manifest.Layers) == 0 {
-		return nil, fmt.Errorf("no layers found in manifest")
-	}
-
-	// Pull the layer blob
-	layerDigest := manifest.Layers[0].Digest
-	fmt.Printf("Looking for layer with digest: %s\n", layerDigest)
-
-	blobURL := fmt.Sprintf("https://%s/v2/%s/blobs/%s", registry, repoName, layerDigest)
-	req, err = http.NewRequest("GET", blobURL, nil)
+	// Pull the package blob
+	packageDigest := manifest.Config.Digest
+	packageURL := fmt.Sprintf("https://%s/v2/%s/blobs/%s", registry, repoName, packageDigest)
+	req, err = http.NewRequest("GET", packageURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -173,21 +166,44 @@ func pullResourceGroup(repository, tag, auth string) ([]byte, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to get blob: %s: %s", resp.Status, string(body))
+		return nil, fmt.Errorf("failed to get package: %s: %s", resp.Status, string(body))
 	}
 
-	// The response body is already our layer tar, read it
-	layerTar := tar.NewReader(resp.Body)
+	// Read the package tar
+	packageTar := tar.NewReader(resp.Body)
+
+	// Find the layer.tar file in the package
+	layerFileName := "layer.tar"
+	var layerReader io.Reader
+	for {
+		hdr, err := packageTar.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read package: %w", err)
+		}
+
+		if hdr.Name == layerFileName {
+			layerReader = packageTar
+			break
+		}
+	}
+
+	if layerReader == nil {
+		return nil, fmt.Errorf("layer.tar not found in package")
+	}
+
+	// Extract the resourcegroup.yaml file from the layer.tar
+	layerTar := tar.NewReader(layerReader)
 	for {
 		hdr, err := layerTar.Next()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to read tar: %w", err)
+			return nil, fmt.Errorf("failed to read layer: %w", err)
 		}
-
-		fmt.Printf("Found file in layer: %s\n", hdr.Name)
 
 		if hdr.Name == "resourcegroup.yaml" {
 			var content bytes.Buffer
@@ -198,7 +214,7 @@ func pullResourceGroup(repository, tag, auth string) ([]byte, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("resourcegroup.yaml not found in package")
+	return nil, fmt.Errorf("resourcegroup.yaml not found in layer")
 }
 
 type Config struct {

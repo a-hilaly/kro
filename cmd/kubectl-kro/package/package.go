@@ -49,8 +49,8 @@ func runPackage(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse ResourceGroup: %w", err)
 	}
 
-	// Create layer containing ResourceGroup
 	layerBuf := new(bytes.Buffer)
+	layerFileName := "layer.tar"
 	layerDigest, size, err := createLayer(layerBuf, "resourcegroup.yaml", content)
 	if err != nil {
 		return fmt.Errorf("failed to create layer: %w", err)
@@ -109,6 +109,17 @@ func runPackage(cmd *cobra.Command, args []string) error {
 	tw := tar.NewWriter(output)
 	defer tw.Close()
 
+	// Write layer
+	if err := writeTarFile(tw, layerFileName, layerBuf.Bytes()); err != nil {
+		return fmt.Errorf("failed to write layer: %w", err)
+	}
+
+	// Write config
+	configFileName := strings.TrimPrefix(configDigest.String(), "sha256:")
+	if err := writeTarFile(tw, configFileName, configJson); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
 	// Write manifest
 	manifestJson, err := json.Marshal(manifest)
 	if err != nil {
@@ -118,17 +129,6 @@ func runPackage(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write manifest: %w", err)
 	}
 
-	// Write config
-	configFileName := strings.TrimPrefix(configDigest.String(), "sha256:")
-	if err := writeTarFile(tw, configFileName, configJson); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
-	}
-
-	// Write layer
-	layerFileName := strings.TrimPrefix(layerDigest.String(), "sha256:")
-	if err := writeTarFile(tw, layerFileName, layerBuf.Bytes()); err != nil {
-		return fmt.Errorf("failed to write layer: %w", err)
-	}
 	return nil
 }
 
@@ -138,31 +138,37 @@ func createLayer(w io.Writer, filename string, content []byte) (digest.Digest, i
 
 	// Create proper tar header
 	header := &tar.Header{
-		Name: filename,
-		Mode: 0644,
-		Size: int64(len(content)),
+		Name:     filename,
+		Mode:     0644,
+		Size:     int64(len(content)),
+		Typeflag: tar.TypeReg,
+		ModTime:  time.Now(),
 	}
 
-	// Write header properly
+	// Write header
 	if err := tw.WriteHeader(header); err != nil {
 		return "", 0, fmt.Errorf("failed to write tar header: %w", err)
 	}
 
-	// Write actual content
+	// Write content
 	if _, err := tw.Write(content); err != nil {
 		return "", 0, fmt.Errorf("failed to write content: %w", err)
 	}
 
+	// Close the tar writer to flush the content
 	if err := tw.Close(); err != nil {
 		return "", 0, fmt.Errorf("failed to close tar writer: %w", err)
 	}
 
+	// Get the layer content from the buffer
 	layerContent := buf.Bytes()
-	dgst := digest.FromBytes(layerContent)
+
+	// Calculate the digest of the layer content
+	dgst := digest.SHA256.FromBytes(layerContent)
 	size := int64(len(layerContent))
 
-	_, err := io.Copy(w, buf)
-	if err != nil {
+	// Write the layer content to the provided writer
+	if _, err := io.Copy(w, bytes.NewReader(layerContent)); err != nil {
 		return "", 0, fmt.Errorf("failed to write layer content: %w", err)
 	}
 
