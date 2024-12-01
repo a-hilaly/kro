@@ -200,3 +200,6 @@ publish-helm: ## Helm publish
 
 .PHONY:
 release: build-image publish-image package-helm publish-helm
+
+build-cli:
+	go build -o bin/kubectl-kro ./cmd/kubectl-kro/main.go

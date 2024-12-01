@@ -1,9 +1,9 @@
 apiVersion: kro.run/v1alpha1
 kind: WebApp
 metadata:
-  name: test-app
+  name: test-app2
 spec:
-  name: test-app
+  name: test-app2
   port: 80 # nginx default port is 80
   ingress:
     enabled: true
