@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	amruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/yaml"
 
@@ -32,12 +34,17 @@ import (
 )
 
 var (
-	optResourceGroupFile string
-	optNamespace         string
+	optResourceGroupFile      string
+	optResourceGroupName      string
+	optResourceGroupNamespace string
+
+	optNamespace string
 )
 
 func init() {
 	Command.PersistentFlags().StringVarP(&optResourceGroupFile, "resourcegroup-file", "f", "", "target resourcegroup file")
+	Command.PersistentFlags().StringVarP(&optResourceGroupName, "rg-name", "r", "", "target resourcegroup name")
+	Command.PersistentFlags().StringVarP(&optResourceGroupNamespace, "rg-namespace", "N", "default", "target resourcegroup namespace")
 	Command.PersistentFlags().StringVarP(&optNamespace, "namespace", "n", "default", "target instance namespace")
 }
 
@@ -47,18 +54,39 @@ var Command = &cobra.Command{
 	Args:    cobra.MinimumNArgs(0),
 	Short:   "Get information about an instance",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		b, err := os.ReadFile(optResourceGroupFile)
+		set, err := kroclient.NewSet(kroclient.Config{})
 		if err != nil {
-			return err
+			return nil
 		}
 
 		var rg v1alpha1.ResourceGroup
-		err = yaml.UnmarshalStrict(b, &rg)
-		if err != nil {
-			return err
+		if optResourceGroupFile != "" {
+			b, err := os.ReadFile(optResourceGroupFile)
+			if err != nil {
+				return err
+			}
+
+			err = yaml.UnmarshalStrict(b, &rg)
+			if err != nil {
+				return err
+			}
+		} else {
+			rgMap, err := set.Dynamic().Resource(schema.GroupVersionResource{
+				Group:    v1alpha1.GroupVersion.Group,
+				Version:  v1alpha1.GroupVersion.Version,
+				Resource: "resourcegroups",
+			}).Namespace(optResourceGroupNamespace).Get(context.Background(), optResourceGroupName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			// transform the unstructured object to a typed object
+			err = amruntime.DefaultUnstructuredConverter.FromUnstructured(rgMap.Object, &rg)
+			if err != nil {
+				return err
+			}
 		}
 
-		err = getInstancesInfo(optNamespace, args, &rg)
+		err = getInstancesInfo(set, optNamespace, args, &rg)
 		if err != nil {
 			return err
 		}
@@ -66,14 +94,8 @@ var Command = &cobra.Command{
 	},
 }
 
-func getInstancesInfo(namespace string, instanceNames []string, rg *v1alpha1.ResourceGroup) error {
-	set, err := kroclient.NewSet(kroclient.Config{})
-	if err != nil {
-		return nil
-	}
-	restConfig := set.RESTConfig()
-
-	builder, err := graph.NewBuilder(restConfig)
+func getInstancesInfo(set *kroclient.Set, namespace string, instanceNames []string, rg *v1alpha1.ResourceGroup) error {
+	builder, err := graph.NewBuilder(set.RESTConfig())
 	if err != nil {
 		return err
 	}
