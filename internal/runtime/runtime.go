@@ -22,9 +22,9 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	krocel "github.com/awslabs/kro/internal/cel"
 	"github.com/awslabs/kro/internal/graph/variable"
 	"github.com/awslabs/kro/internal/runtime/resolver"
+	krocel "github.com/awslabs/kro/pkg/cel"
 )
 
 // Compile time proof to ensure that ResourceGroupRuntime implements the

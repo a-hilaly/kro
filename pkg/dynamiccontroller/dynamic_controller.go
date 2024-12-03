@@ -76,7 +76,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/awslabs/kro/internal/metadata"
-	"github.com/awslabs/kro/internal/requeue"
+	"github.com/awslabs/kro/pkg/requeue"
 )
 
 // Config holds the configuration for DynamicController

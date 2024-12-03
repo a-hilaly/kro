@@ -24,9 +24,9 @@ import (
 
 	"github.com/awslabs/kro/api/v1alpha1"
 	instancectrl "github.com/awslabs/kro/internal/controller/instance"
-	"github.com/awslabs/kro/internal/dynamiccontroller"
 	"github.com/awslabs/kro/internal/graph"
 	"github.com/awslabs/kro/internal/metadata"
+	"github.com/awslabs/kro/pkg/dynamiccontroller"
 )
 
 // reconcileResourceGroup orchestrates the reconciliation of a ResourceGroup by:

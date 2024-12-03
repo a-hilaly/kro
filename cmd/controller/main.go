@@ -32,10 +32,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	xv1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	kroclient "github.com/awslabs/kro/internal/client"
 	resourcegroupctrl "github.com/awslabs/kro/internal/controller/resourcegroup"
-	"github.com/awslabs/kro/internal/dynamiccontroller"
 	"github.com/awslabs/kro/internal/graph"
+	kroclient "github.com/awslabs/kro/pkg/client"
+	"github.com/awslabs/kro/pkg/dynamiccontroller"
 	//+kubebuilder:scaffold:imports
 )
 
