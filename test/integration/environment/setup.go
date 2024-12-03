@@ -29,11 +29,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	krov1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	kroclient "github.com/awslabs/kro/internal/client"
 	ctrlinstance "github.com/awslabs/kro/internal/controller/instance"
 	ctrlresourcegroup "github.com/awslabs/kro/internal/controller/resourcegroup"
-	"github.com/awslabs/kro/internal/dynamiccontroller"
 	"github.com/awslabs/kro/internal/graph"
+	kroclient "github.com/awslabs/kro/pkg/client"
+	"github.com/awslabs/kro/pkg/dynamiccontroller"
 )
 
 type Environment struct {
