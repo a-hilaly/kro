@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/rest"
 
-	"github.com/awslabs/kro/internal/graph/emulator"
-	"github.com/awslabs/kro/internal/graph/variable"
-	"github.com/awslabs/kro/internal/testutil/generator"
-	"github.com/awslabs/kro/internal/testutil/k8s"
+	"github.com/awslabs/kro/pkg/graph/emulator"
+	"github.com/awslabs/kro/pkg/graph/variable"
+	"github.com/awslabs/kro/pkg/testutil/generator"
+	"github.com/awslabs/kro/pkg/testutil/k8s"
 )
 
 func TestGraphBuilder_Validation(t *testing.T) {

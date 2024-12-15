@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	ctrlinstance "github.com/awslabs/kro/internal/controller/instance"
+	ctrlinstance "github.com/awslabs/kro/pkg/controller/instance"
 	"github.com/awslabs/kro/test/integration/environment"
 )
 

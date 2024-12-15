@@ -19,7 +19,7 @@ import (
 
 	"k8s.io/kube-openapi/pkg/validation/spec"
 
-	"github.com/awslabs/kro/internal/graph/variable"
+	"github.com/awslabs/kro/pkg/graph/variable"
 )
 
 const (
