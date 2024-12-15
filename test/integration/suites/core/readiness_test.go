@@ -260,6 +260,7 @@ var _ = Describe("Readiness", func() {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// validate service spec
+
 			Expect(service.Annotations).To(HaveLen(1))
 			Expect(service.Annotations["app"]).To(Equal("service"))
 		}, 20*time.Second, time.Second).Should(Succeed())
