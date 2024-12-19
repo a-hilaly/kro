@@ -1,4 +1,4 @@
-.awsFooter {
+.kroFooter {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -6,24 +6,13 @@
   color: white;
 }
 
-[data-theme='dark'] .awsFooter {
+[data-theme='dark'] .kroFooter {
   background-color: var(--main-color-dark);
 }
 
-.awsFooterText {
+.kroFooterText {
   padding: 2.5px;
   font-size: 1.1rem;
   font-weight: bold;
   margin: auto;
-}
-
-.awsFooterTextHeart {
-  content: url("@site/static/img/heart.svg");
-  margin-left: 6px;
-  margin-right: 6px;
-  height: 18px;
-  max-height: 18px;
-  margin: auto;
-  padding: 0;
-  padding-top: 2px;
 }
