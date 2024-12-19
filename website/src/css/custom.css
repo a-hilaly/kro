@@ -137,7 +137,7 @@ article {
   background-color: var(--ifm-navbar-link-hover-color);
 }
 
-[data-theme='dark'] .awsFooter {
+[data-theme='dark'] .kroFooter {
   background-color: var(--main-color-dark);
 }
 
