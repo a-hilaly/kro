@@ -1,6 +1,9 @@
 # Event Driven Architectures with Amazon EKS and AWS Controllers for Kubernetes
 
 This data processing example uses event-driven approach for data ingestion and process orchestration, along with Amazon EMR on EKS for data processing implementation. This example uses [New York City taxi data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
+
+This example was presented at re:Invent 2024, you can watch demo walkthrough [here](https://youtu.be/AmJGFzIezFA?feature=shared&t=1878).
+
 ## Architecture
 
 Following diagram illustrates flow of the example and services used:
