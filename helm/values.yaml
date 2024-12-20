@@ -73,20 +73,21 @@ deployment:
   extraVolumes: []
   # Additional volume mount settings for Pods
   extraVolumeMounts: []
-  # Application configuration settings
-  config:
-    # Allow kro to delete CRDs
-    allowCRDDeletion: false
-    # The address the metric endpoint binds to
-    metricsBindAddress: :8078
-    # The address the probe endpoint binds to
-    healthProbeBindAddress: :8079
-    # The number of resource group reconciles to run in parallel
-    resourceGroupConcurrentReconciles: 1
-    # The number of dynamic controller reconciles to run in parallel
-    dynamicControllerConcurrentReconciles: 1
-    # The log level verbosity. 0 is the least verbose, 5 is the most verbose
-    logLevel: 3
+
+# Application configuration settings
+config:
+  # Allow kro to delete CRDs
+  allowCRDDeletion: false
+  # The address the metric endpoint binds to
+  metricsBindAddress: :8078
+  # The address the probe endpoint binds to
+  healthProbeBindAddress: :8079
+  # The number of resource group reconciles to run in parallel
+  resourceGroupConcurrentReconciles: 1
+  # The number of dynamic controller reconciles to run in parallel
+  dynamicControllerConcurrentReconciles: 1
+  # The log level verbosity. 0 is the least verbose, 5 is the most verbose
+  logLevel: 3
 
 metrics:
   service:

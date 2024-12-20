@@ -42,17 +42,17 @@ spec:
             {{- toYaml .Values.deployment.resources | nindent 12 }}
           env:
             - name: KRO_ALLOW_CRD_DELETION
-              value: {{ .Values.deployment.config.allowCRDDeletion | quote }}
+              value: {{ .Values.config.allowCRDDeletion | quote }}
             - name: KRO_METRICS_BIND_ADDRESS
-              value: {{ .Values.deployment.config.metricsBindAddress | quote }}
+              value: {{ .Values.config.metricsBindAddress | quote }}
             - name: KRO_HEALTH_PROBE_BIND_ADDRESS
-              value: {{ .Values.deployment.config.healthProbeBindAddress | quote }}
+              value: {{ .Values.config.healthProbeBindAddress | quote }}
             - name: KRO_RESOURCE_GROUP_CONCURRENT_RECONCILES
-              value: {{ .Values.deployment.config.resourceGroupConcurrentReconciles | quote }}
+              value: {{ .Values.config.resourceGroupConcurrentReconciles | quote }}
             - name: KRO_DYNAMIC_CONTROLLER_CONCURRENT_RECONCILES
-              value: {{ .Values.deployment.config.dynamicControllerConcurrentReconciles | quote }}
+              value: {{ .Values.config.dynamicControllerConcurrentReconciles | quote }}
             - name: KRO_LOG_LEVEL
-              value: {{ .Values.deployment.config.logLevel | quote }}
+              value: {{ .Values.config.logLevel | quote }}
           args:
             - --allow-crd-deletion
             - "$(KRO_ALLOW_CRD_DELETION)"
