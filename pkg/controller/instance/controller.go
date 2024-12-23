@@ -28,9 +28,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/internal/graph"
-	"github.com/awslabs/kro/internal/metadata"
 	kroclient "github.com/awslabs/kro/pkg/client"
+	"github.com/awslabs/kro/pkg/graph"
+	"github.com/awslabs/kro/pkg/metadata"
 )
 
 // ReconcileConfig holds configuration parameters for the recnociliation process.

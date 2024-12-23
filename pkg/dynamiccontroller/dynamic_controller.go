@@ -75,7 +75,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/awslabs/kro/internal/metadata"
+	"github.com/awslabs/kro/pkg/metadata"
 	"github.com/awslabs/kro/pkg/requeue"
 )
 

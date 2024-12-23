@@ -24,10 +24,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/internal/graph"
-	"github.com/awslabs/kro/internal/metadata"
 	kroclient "github.com/awslabs/kro/pkg/client"
 	"github.com/awslabs/kro/pkg/dynamiccontroller"
+	"github.com/awslabs/kro/pkg/graph"
+	"github.com/awslabs/kro/pkg/metadata"
 )
 
 //+kubebuilder:rbac:groups=kro.run,resources=resourcegroups,verbs=get;list;watch;create;update;patch;delete

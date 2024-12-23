@@ -66,7 +66,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 tt:
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./internal/controller/resourcegroup"
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/controller/resourcegroup"
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -81,7 +81,7 @@ test: manifests generate fmt vet ## Run tests. Use WHAT=unit or WHAT=integration
 ifeq ($(WHAT),integration)
 	go test -v ./test/integration/suites/... -coverprofile integration-cover.out
 else ifeq ($(WHAT),unit)
-	go test -v ./internal/... -coverprofile unit-cover.out
+	go test -v ./pkg/... -coverprofile unit-cover.out
 else
 	@echo "Error: WHAT must be either 'unit' or 'integration'"
 	@echo "Usage: make test WHAT=unit|integration"

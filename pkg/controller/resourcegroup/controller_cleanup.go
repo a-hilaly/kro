@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/internal/metadata"
+	"github.com/awslabs/kro/pkg/metadata"
 )
 
 // cleanupResourceGroup handles the deletion of a ResourceGroup by shutting down its associated

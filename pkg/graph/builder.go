@@ -29,15 +29,15 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/internal/graph/crd"
-	"github.com/awslabs/kro/internal/graph/dag"
-	"github.com/awslabs/kro/internal/graph/emulator"
-	"github.com/awslabs/kro/internal/graph/parser"
-	"github.com/awslabs/kro/internal/graph/schema"
-	"github.com/awslabs/kro/internal/graph/variable"
-	"github.com/awslabs/kro/internal/metadata"
 	krocel "github.com/awslabs/kro/pkg/cel"
 	"github.com/awslabs/kro/pkg/cel/ast"
+	"github.com/awslabs/kro/pkg/graph/crd"
+	"github.com/awslabs/kro/pkg/graph/dag"
+	"github.com/awslabs/kro/pkg/graph/emulator"
+	"github.com/awslabs/kro/pkg/graph/parser"
+	"github.com/awslabs/kro/pkg/graph/schema"
+	"github.com/awslabs/kro/pkg/graph/variable"
+	"github.com/awslabs/kro/pkg/metadata"
 	"github.com/awslabs/kro/pkg/simpleschema"
 )
 

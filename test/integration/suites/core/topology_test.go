@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	krov1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/internal/testutil/generator"
+	"github.com/awslabs/kro/pkg/testutil/generator"
 )
 
 var _ = Describe("Topology", func() {
