@@ -99,7 +99,11 @@ func parseObject(field map[string]interface{}, schema *spec.Schema, path, expect
 		// If the schema has the x-kubernetes-preserve-unknown-fields extension, we should not
 		// parse the object and return an empty list of expressions.
 		if enabled, ok := schema.VendorExtensible.Extensions[xKubernetesPreserveUnknownFields]; ok && enabled.(bool) {
-			return nil, nil
+			expressions, err := parseSchemalessResource(field, path)
+			if err != nil {
+				return nil, err
+			}
+			return expressions, nil
 		}
 	}
 

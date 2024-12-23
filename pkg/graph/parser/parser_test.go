@@ -48,6 +48,14 @@ func TestParseResource(t *testing.T) {
 					"${value}",
 				},
 			},
+			"schemalessField": map[string]interface{}{
+				"key":       "value",
+				"something": "${schemaless.value}",
+				"nestedSomething": map[string]interface{}{
+					"key":    "value",
+					"nested": "${schemaless.nested.value}",
+				},
+			},
 		}
 
 		schema := &spec.Schema{
@@ -107,6 +115,16 @@ func TestParseResource(t *testing.T) {
 							},
 						},
 					},
+					"schemalessField": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+						},
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-preserve-unknown-fields": true,
+							},
+						},
+					},
 				},
 			},
 		}
@@ -125,6 +143,8 @@ func TestParseResource(t *testing.T) {
 			{Path: "specialCharacters[\"doted.annotation.key\"]", Expressions: []string{"dotedannotationvalue"}, ExpectedType: "string", StandaloneExpression: true},
 			{Path: "specialCharacters[\"\"]", Expressions: []string{"emptyannotation"}, ExpectedType: "string", StandaloneExpression: true},
 			{Path: "specialCharacters[\"array.name.with.dots\"][0]", Expressions: []string{"value"}, ExpectedType: "string", StandaloneExpression: true},
+			{Path: "schemalessField.something", Expressions: []string{"schemaless.value"}, ExpectedType: "string", StandaloneExpression: true},
+			{Path: "schemalessField.nestedSomething.nested", Expressions: []string{"schemaless.nested.value"}, ExpectedType: "string", StandaloneExpression: true},
 		}
 
 		expressions, err := ParseResource(resource, schema)
@@ -616,6 +636,31 @@ func TestParserEdgeCases(t *testing.T) {
 				},
 			},
 			resource:      map[string]interface{}{"name": "John", "age": 30},
+			expectedError: "",
+		},
+		{
+			name: "structured object with nested x-kubernetes-preserve-unknown-fields",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"id": {SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"object"},
+							},
+							VendorExtensible: spec.VendorExtensible{
+								Extensions: spec.Extensions{
+									"x-kubernetes-preserve-unknown-fields": true,
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{"id": "123", "metadata": map[string]interface{}{
+				"name": "John", "age": 30, "test": "${test.value}",
+			}},
 			expectedError: "",
 		},
 	}
