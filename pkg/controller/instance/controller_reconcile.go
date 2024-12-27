@@ -25,9 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/awslabs/kro/internal/metadata"
-	"github.com/awslabs/kro/internal/runtime"
+	"github.com/awslabs/kro/pkg/metadata"
 	"github.com/awslabs/kro/pkg/requeue"
+	"github.com/awslabs/kro/pkg/runtime"
 )
 
 // instanceGraphReconciler is responsible for reconciling a single instance and

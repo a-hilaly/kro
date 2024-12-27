@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	krov1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/internal/testutil/generator"
+	"github.com/awslabs/kro/pkg/testutil/generator"
 )
 
 // deploymentService creates a ResourceGroup for testing deployment+service combinations
