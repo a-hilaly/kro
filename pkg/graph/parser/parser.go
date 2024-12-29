@@ -96,10 +96,17 @@ func parseObject(field map[string]interface{}, schema *spec.Schema, path, expect
 
 	// Look for vendor schema extensions first
 	if len(schema.VendorExtensible.Extensions) > 0 {
-		// If the schema has the x-kubernetes-preserve-unknown-fields extension, we should not
-		// parse the object and return an empty list of expressions.
+		// If the schema has the x-kubernetes-preserve-unknown-fields extension, we need to parse
+		// this field using the schemaless parser. This allows us to extract CEL expressions from
+		// fields that don't have a strict schema definition, while still preserving any unknown
+		// fields. This is particularly important for handling custom resources and fields that
+		// may contain arbitrary nested structures with potential CEL expressions.
 		if enabled, ok := schema.VendorExtensible.Extensions[xKubernetesPreserveUnknownFields]; ok && enabled.(bool) {
-			return nil, nil
+			expressions, err := parseSchemalessResource(field, path)
+			if err != nil {
+				return nil, err
+			}
+			return expressions, nil
 		}
 	}
 
