@@ -191,11 +191,11 @@ func parseScalarTypes(field interface{}, _ *spec.Schema, path, expectedType stri
 		if _, ok := field.(float64); !ok {
 			return nil, fmt.Errorf("expected number type for path %s, got %T", path, field)
 		}
-	case "integer":
+	case "integer", "int":
 		if !isInteger(field) {
 			return nil, fmt.Errorf("expected integer type for path %s, got %T", path, field)
 		}
-	case "boolean":
+	case "boolean", "bool":
 		if _, ok := field.(bool); !ok {
 			return nil, fmt.Errorf("expected boolean type for path %s, got %T", path, field)
 		}

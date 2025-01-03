@@ -711,3 +711,23 @@ func TestJoinPathAndFieldName(t *testing.T) {
 		})
 	}
 }
+
+func TestPartScalerTypesShortSpecTypes(t *testing.T) {
+	tests := []struct {
+		name          string
+		shortSpecType string
+		field         interface{}
+	}{
+		{"int short type for integer", "int", 42},
+		{"bool short type for boolean", "bool", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseScalarTypes(tt.field, nil, "spec.someitem", tt.shortSpecType)
+			if err != nil {
+				t.Errorf("Expected %T resolved for %s, but got error: %s", tt.field, tt.shortSpecType, err.Error())
+			}
+		})
+	}
+}
