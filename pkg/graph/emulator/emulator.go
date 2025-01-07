@@ -89,6 +89,11 @@ func (e *Emulator) generateValue(schema *spec.Schema) (interface{}, error) {
 			return e.generateValue(&schema.OneOf[e.rand.Intn(len(schema.OneOf))])
 		}
 
+		// Check if its anyOf schema
+		if len(schema.AnyOf) > 0 {
+			return e.generateValue(&schema.AnyOf[e.rand.Intn(len(schema.AnyOf))])
+		}
+
 		return nil, fmt.Errorf("schema type is empty and has no properties")
 	}
 

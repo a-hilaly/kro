@@ -215,6 +215,126 @@ func TestGenerateDummyCR(t *testing.T) {
 			},
 		},
 		{
+			name: "complex schema with nested objects and arrays using AnyOf",
+			gvk: schema.GroupVersionKind{
+				Group:   "kro.run",
+				Version: "v1alpha1",
+				Kind:    "AnyOfTest",
+			},
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"spec": {
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"config": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"name": {
+													SchemaProps: spec.SchemaProps{
+														Type: spec.StringOrArray{"string"},
+													},
+												},
+												"enabled": {
+													SchemaProps: spec.SchemaProps{
+														Type: spec.StringOrArray{"boolean"},
+													},
+												},
+											},
+										},
+									},
+									"items": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"array"},
+											Items: &spec.SchemaOrArray{
+												Schema: &spec.Schema{
+													SchemaProps: spec.SchemaProps{
+														Properties: map[string]spec.Schema{
+															"id": {
+																SchemaProps: spec.SchemaProps{
+																	Type: spec.StringOrArray{"string"},
+																},
+															},
+															"value": {
+																SchemaProps: spec.SchemaProps{
+																	AnyOf: []spec.Schema{
+																		{
+																			SchemaProps: spec.SchemaProps{
+																				Type: spec.StringOrArray{"integer"},
+																			},
+																		},
+																		{
+																			SchemaProps: spec.SchemaProps{
+																				Type: spec.StringOrArray{"string"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						"status": {
+							SchemaProps: spec.SchemaProps{
+								Type: spec.StringOrArray{"object"},
+								Properties: map[string]spec.Schema{
+									"phase": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"string"},
+										},
+									},
+									"replicas": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"integer"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			validateOutput: func(t *testing.T, obj map[string]interface{}) {
+				// Validate spec
+				spec, ok := obj["spec"].(map[string]interface{})
+				require.True(t, ok, "spec should be an object")
+
+				// Validate config
+				config, ok := spec["config"].(map[string]interface{})
+				require.True(t, ok, "config should be an object")
+				assert.IsType(t, "", config["name"], "config.name should be string")
+				assert.IsType(t, false, config["enabled"], "config.enabled should be bool")
+
+				// Validate items
+				items, ok := spec["items"].([]interface{})
+				require.True(t, ok, "items should be an array")
+				require.NotEmpty(t, items, "items should not be empty")
+
+				for _, item := range items {
+					itemMap, ok := item.(map[string]interface{})
+					require.True(t, ok, "item should be an object")
+					assert.IsType(t, "", itemMap["id"], "item.id should be string")
+
+					// Check if value is either int64 or string
+					value := itemMap["value"]
+					assert.True(t, isInt64OrString(value), "item.value should be either int64 or string")
+				}
+
+				// Validate status
+				status, ok := obj["status"].(map[string]interface{})
+				require.True(t, ok, "status should be an object")
+				assert.IsType(t, "", status["phase"], "status.phase should be string")
+				assert.IsType(t, int64(0), status["replicas"], "status.replicas should be int64")
+			},
+		},
+		{
 			name: "schema with number constraints",
 			gvk: schema.GroupVersionKind{
 				Group:   "kro.run",
@@ -364,4 +484,14 @@ func TestGenerateDummyCRErrors(t *testing.T) {
 
 func ptr[T comparable](v T) *T {
 	return &v
+}
+
+// Helper function to check if a value is either int64 or string
+func isInt64OrString(v interface{}) bool {
+	switch v.(type) {
+	case int64, string:
+		return true
+	default:
+		return false
+	}
 }
