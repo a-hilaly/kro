@@ -24,6 +24,8 @@ import (
 
 const (
 	xKubernetesPreserveUnknownFields = "x-kubernetes-preserve-unknown-fields"
+	xKubernetesIntOrString           = "x-kubernetes-int-or-string"
+	schemaTypeAny                    = "any"
 )
 
 // ParseResource extracts CEL expressions from a resource based on
@@ -45,7 +47,10 @@ func parseResource(resource interface{}, schema *spec.Schema, path string) ([]va
 		return nil, err
 	}
 
-	expectedType := getExpectedType(schema)
+	expectedType, err := getExpectedType(schema, resource)
+	if err != nil {
+		return nil, err
+	}
 
 	switch field := resource.(type) {
 	case map[string]interface{}:
@@ -75,18 +80,36 @@ func validateSchema(schema *spec.Schema, path string) error {
 	return nil
 }
 
-func getExpectedType(schema *spec.Schema) string {
+func getExpectedType(schema *spec.Schema, resource interface{}) (string, error) {
+	// handle "x-kubernetes-int-or-string"
+	if ext, ok := schema.VendorExtensible.Extensions[xKubernetesIntOrString]; ok {
+		enabled, ok := ext.(bool)
+		if !ok {
+			return "", fmt.Errorf("xKubernetesIntOrString extension is not a boolean")
+		}
+		if enabled {
+			switch resourceType := resource.(type) {
+			case string:
+				return "string", nil
+			case int:
+				return "integer", nil
+			default:
+				return "", fmt.Errorf("found `xKubernetesIntOrString` extension but field value is neither a string nor an integer: %v", resourceType)
+			}
+		}
+	}
+
 	if schema.Type[0] != "" {
-		return schema.Type[0]
+		return schema.Type[0], nil
 	}
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.Allows {
 		// NOTE(a-hilaly): I don't like the type "any", we might want to change this to "object"
 		// in the future; just haven't really thought about it yet.
 		// Basically "any" means that the field can be of any type, and we have to check
 		// the ExpectedSchema field.
-		return "any"
+		return schemaTypeAny, nil
 	}
-	return ""
+	return "", fmt.Errorf("unknown schema type")
 }
 
 func parseObject(field map[string]interface{}, schema *spec.Schema, path, expectedType string) ([]variable.FieldDescriptor, error) {
@@ -163,7 +186,7 @@ func parseString(field string, schema *spec.Schema, path, expectedType string) (
 		}}, nil
 	}
 
-	if expectedType != "string" && expectedType != "any" {
+	if expectedType != "string" && expectedType != schemaTypeAny {
 		return nil, fmt.Errorf("expected string type or AdditionalProperties for path %s, got %v", path, field)
 	}
 
@@ -182,7 +205,7 @@ func parseString(field string, schema *spec.Schema, path, expectedType string) (
 }
 
 func parseScalarTypes(field interface{}, _ *spec.Schema, path, expectedType string) ([]variable.FieldDescriptor, error) {
-	if expectedType == "any" {
+	if expectedType == schemaTypeAny {
 		return nil, nil
 	}
 	// perform type checks for scalar types
