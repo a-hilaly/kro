@@ -482,6 +482,25 @@ func TestGenerateDummyCRErrors(t *testing.T) {
 	})
 }
 
+func TestGenerateValueWithIntOrString(t *testing.T) {
+	e := NewEmulator()
+
+	t.Run("x-kubernetes-int-or-string present, generates integer", func(t *testing.T) {
+		schema := &spec.Schema{
+			VendorExtensible: spec.VendorExtensible{
+				Extensions: map[string]interface{}{
+					"x-kubernetes-int-or-string": true,
+				},
+			},
+		}
+
+		value, err := e.generateValue(schema)
+		require.NoError(t, err)
+		assert.IsType(t, int64(0), value, "Expected integer as default value for x-kubernetes-int-or-string")
+	})
+
+}
+
 func ptr[T comparable](v T) *T {
 	return &v
 }

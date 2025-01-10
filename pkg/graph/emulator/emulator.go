@@ -79,6 +79,11 @@ func (e *Emulator) generateValue(schema *spec.Schema) (interface{}, error) {
 		return nil, fmt.Errorf("schema is nil")
 	}
 
+	if enabled, ok := schema.VendorExtensible.Extensions["x-kubernetes-int-or-string"]; ok && enabled.(bool) {
+		// Default to integer for dummy CRs
+		return e.generateInteger(schema), nil
+	}
+
 	if len(schema.Type) == 0 {
 		// If type is not set, check if it's an object
 		if len(schema.Properties) > 0 {
