@@ -668,7 +668,6 @@ func TestParserEdgeCases(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := parseResource(tc.resource, tc.schema, "")
-
 			if tc.expectedError == "" {
 				if err != nil {
 					t.Errorf("Expected no error, but got: %s", err.Error())
@@ -722,12 +721,161 @@ func TestPartScalerTypesShortSpecTypes(t *testing.T) {
 		{"bool short type for boolean", "bool", true},
 	}
 
+	dummySchema := &spec.Schema{}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseScalarTypes(tt.field, nil, "spec.someitem", tt.shortSpecType)
+			_, err := parseScalarTypes(tt.field, dummySchema, "spec.someitem", tt.shortSpecType)
 			if err != nil {
-				t.Errorf("Expected %T resolved for %s, but got error: %s", tt.field, tt.shortSpecType, err.Error())
+				t.Errorf("Expected %T resolved for %s, but got error: %s",
+					tt.field, tt.shortSpecType, err.Error())
 			}
 		})
 	}
+}
+
+func TestXKubernetesIntOrString(t *testing.T) {
+	schema := &spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Type: []string{"object"},
+			Properties: map[string]spec.Schema{
+				"myField": {
+					SchemaProps: spec.SchemaProps{
+						// default "integer",
+						Type: []string{"integer"},
+					},
+					VendorExtensible: spec.VendorExtensible{
+						Extensions: spec.Extensions{
+							"x-kubernetes-int-or-string": true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		resource   map[string]interface{}
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "Field is integer",
+			resource: map[string]interface{}{
+				"myField": 42,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Field is string",
+			resource: map[string]interface{}{
+				"myField": "forty-two",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Field is bool (invalid)",
+			resource: map[string]interface{}{
+				"myField": true,
+			},
+			wantErr:    true,
+			wantErrMsg: "found `xKubernetesIntOrString` extension but field value is neither a string nor an integer: true",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseResource(tc.resource, schema)
+			if tc.wantErr && err == nil {
+				t.Errorf("Expected error but got none")
+			} else if !tc.wantErr && err != nil {
+				t.Errorf("Did not expect error but got: %v", err)
+			} else if tc.wantErr && err != nil {
+				if tc.wantErrMsg != "" && err.Error() != tc.wantErrMsg {
+					t.Errorf("Expected error message %q, got %q", tc.wantErrMsg, err.Error())
+				}
+			}
+		})
+	}
+}
+
+func TestNestedXKubernetesIntOrString(t *testing.T) {
+	// Schema: outerObject is an object that has a property "nestedField"
+	// that can be either an integer or a string.
+	t.Run("Nested x-kubernetes-int-or-string in object", func(t *testing.T) {
+		schema := &spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"outerObject": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							Properties: map[string]spec.Schema{
+								"nestedField": {
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"integer"},
+									},
+									VendorExtensible: spec.VendorExtensible{
+										Extensions: spec.Extensions{
+											"x-kubernetes-int-or-string": true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		testCases := []struct {
+			name          string
+			resource      map[string]interface{}
+			wantErr       bool
+			expectedError string
+		}{
+			{
+				name: "nestedField as integer",
+				resource: map[string]interface{}{
+					"outerObject": map[string]interface{}{
+						"nestedField": 123,
+					},
+				},
+				wantErr: false,
+			},
+			{
+				name: "nestedField as string",
+				resource: map[string]interface{}{
+					"outerObject": map[string]interface{}{
+						"nestedField": "one-two-three",
+					},
+				},
+				wantErr: false,
+			},
+			{
+				name: "nestedField as bool (invalid)",
+				resource: map[string]interface{}{
+					"outerObject": map[string]interface{}{
+						"nestedField": true,
+					},
+				},
+				wantErr:       true,
+				expectedError: "found `xKubernetesIntOrString` extension but field value is neither a string nor an integer: true",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := ParseResource(tc.resource, schema)
+				if tc.wantErr && err == nil {
+					t.Errorf("Expected error, but got none")
+				} else if !tc.wantErr && err != nil {
+					t.Errorf("Did not expect error, but got: %v", err)
+				} else if tc.wantErr && err != nil && tc.expectedError != "" && err.Error() != tc.expectedError {
+					t.Errorf("Expected error message %q, got %q", tc.expectedError, err.Error())
+				}
+			})
+		}
+	})
 }
