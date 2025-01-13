@@ -30,13 +30,44 @@ func areEqualExpressionFields(a, b []variable.FieldDescriptor) bool {
 
 	for i := range a {
 		if !equalStrings(a[i].Expressions, b[i].Expressions) ||
-			a[i].ExpectedType != b[i].ExpectedType ||
+			!areEqualSlices(a[i].ExpectedTypes, b[i].ExpectedTypes) ||
 			a[i].Path != b[i].Path ||
 			a[i].StandaloneExpression != b[i].StandaloneExpression {
 			return false
 		}
 	}
 	return true
+}
+
+// areEqualSlices checks if two string slices contain the same elements, regardless of order.
+// It returns true if both slices have the same length and contain the same set of unique elements,
+// and false otherwise. This function treats the slices as sets, so duplicate elements are ignored.
+//
+// Parameters:
+//   - slice1
+//   - slice2
+//
+// Returns:
+//   - bool: true if the slices contain the same elements, false otherwise
+func areEqualSlices(slice1, slice2 []string) bool {
+	if len(slice1) != len(slice2) {
+		return false
+	}
+
+	elementSet := make(map[string]bool)
+	for _, s := range slice1 {
+		elementSet[s] = true
+	}
+
+	// Check if all elements from slice2 are in the set
+	for _, s := range slice2 {
+		if !elementSet[s] {
+			return false
+		}
+		// Remove the element to ensure uniqueness
+		delete(elementSet, s)
+	}
+	return len(elementSet) == 0
 }
 
 func TestParseSchemalessResource(t *testing.T) {
@@ -54,7 +85,7 @@ func TestParseSchemalessResource(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{"resource.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "field",
 					StandaloneExpression: true,
 				},
@@ -71,7 +102,7 @@ func TestParseSchemalessResource(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{"nested.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "outer.inner",
 					StandaloneExpression: true,
 				},
@@ -89,13 +120,13 @@ func TestParseSchemalessResource(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{"array[0]"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "array[0]",
 					StandaloneExpression: true,
 				},
 				{
 					Expressions:          []string{"array[1]"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "array[1]",
 					StandaloneExpression: true,
 				},
@@ -109,9 +140,9 @@ func TestParseSchemalessResource(t *testing.T) {
 			},
 			want: []variable.FieldDescriptor{
 				{
-					Expressions:  []string{"expr1", "expr2"},
-					ExpectedType: "any",
-					Path:         "field",
+					Expressions:   []string{"expr1", "expr2"},
+					ExpectedTypes: []string{"any"},
+					Path:          "field",
 				},
 			},
 			wantErr: false,
@@ -132,13 +163,13 @@ func TestParseSchemalessResource(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{"string.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "string",
 					StandaloneExpression: true,
 				},
 				{
 					Expressions:          []string{"array.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "nested.array[0]",
 					StandaloneExpression: true,
 				},
@@ -196,7 +227,7 @@ func TestParseSchemalessResourceEdgeCases(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{"deeply.nested.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "level1.level2.level3.level4",
 					StandaloneExpression: true,
 				},
@@ -218,13 +249,13 @@ func TestParseSchemalessResourceEdgeCases(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{"expr1"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "array[0]",
 					StandaloneExpression: true,
 				},
 				{
 					Expressions:          []string{"expr2"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "array[3].nested",
 					StandaloneExpression: true,
 				},
@@ -240,13 +271,13 @@ func TestParseSchemalessResourceEdgeCases(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{""},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "empty1",
 					StandaloneExpression: true,
 				},
 				{
 					Expressions:          []string{"    "},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "empty2",
 					StandaloneExpression: true,
 				},
@@ -290,36 +321,36 @@ func TestParseSchemalessResourceEdgeCases(t *testing.T) {
 			want: []variable.FieldDescriptor{
 				{
 					Expressions:          []string{"string.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "string",
 					StandaloneExpression: true,
 				},
 				{
 					Expressions:          []string{"array.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "nested.array[0]",
 					StandaloneExpression: true,
 				},
 				{
-					Expressions:  []string{"expr1", "expr2"},
-					ExpectedType: "any",
-					Path:         "complex.field",
+					Expressions:   []string{"expr1", "expr2"},
+					ExpectedTypes: []string{"any"},
+					Path:          "complex.field",
 				},
 				{
 					Expressions:          []string{"nested.value"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "complex.nested.inner",
 					StandaloneExpression: true,
 				},
 				{
 					Expressions:          []string{"expr4"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "complex.array[1]",
 					StandaloneExpression: true,
 				},
 				{
 					Expressions:          []string{"expr5"},
-					ExpectedType:         "any",
+					ExpectedTypes:        []string{"any"},
 					Path:                 "complex.array[2]",
 					StandaloneExpression: true,
 				},
