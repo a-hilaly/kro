@@ -15,6 +15,7 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"k8s.io/kube-openapi/pkg/validation/spec"
@@ -47,22 +48,22 @@ func parseResource(resource interface{}, schema *spec.Schema, path string) ([]va
 		return nil, err
 	}
 
-	expectedType, err := getExpectedType(schema, resource)
+	expectedTypes, err := getExpectedTypes(schema)
 	if err != nil {
 		return nil, err
 	}
 
 	switch field := resource.(type) {
 	case map[string]interface{}:
-		return parseObject(field, schema, path, expectedType)
+		return parseObject(field, schema, path, expectedTypes)
 	case []interface{}:
-		return parseArray(field, schema, path, expectedType)
+		return parseArray(field, schema, path, expectedTypes)
 	case string:
-		return parseString(field, schema, path, expectedType)
+		return parseString(field, schema, path, expectedTypes)
 	case nil:
 		return nil, nil
 	default:
-		return parseScalarTypes(field, schema, path, expectedType)
+		return parseScalarTypes(field, schema, path, expectedTypes)
 	}
 }
 
@@ -80,40 +81,37 @@ func validateSchema(schema *spec.Schema, path string) error {
 	return nil
 }
 
-func getExpectedType(schema *spec.Schema, resource interface{}) (string, error) {
+func getExpectedTypes(schema *spec.Schema) ([]string, error) {
 	// handle "x-kubernetes-int-or-string"
 	if ext, ok := schema.VendorExtensible.Extensions[xKubernetesIntOrString]; ok {
 		enabled, ok := ext.(bool)
 		if !ok {
-			return "", fmt.Errorf("xKubernetesIntOrString extension is not a boolean")
+			return nil, fmt.Errorf("xKubernetesIntOrString extension is not a boolean")
 		}
 		if enabled {
-			switch resourceType := resource.(type) {
-			case string:
-				return "string", nil
-			case int:
-				return "integer", nil
-			default:
-				return "", fmt.Errorf("found `xKubernetesIntOrString` extension but field value is neither a string nor an integer: %v", resourceType)
-			}
+			return []string{"string", "integer"}, nil
 		}
 	}
 
 	if schema.Type[0] != "" {
-		return schema.Type[0], nil
+		return schema.Type, nil
 	}
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.Allows {
 		// NOTE(a-hilaly): I don't like the type "any", we might want to change this to "object"
 		// in the future; just haven't really thought about it yet.
 		// Basically "any" means that the field can be of any type, and we have to check
 		// the ExpectedSchema field.
-		return schemaTypeAny, nil
+		return []string{schemaTypeAny}, nil
 	}
-	return "", fmt.Errorf("unknown schema type")
+	return nil, fmt.Errorf("unknown schema type")
 }
 
-func parseObject(field map[string]interface{}, schema *spec.Schema, path, expectedType string) ([]variable.FieldDescriptor, error) {
-	if expectedType != "object" && (schema.AdditionalProperties == nil || !schema.AdditionalProperties.Allows) {
+func sliceInclude(expectedTypes []string, expectedType string) bool {
+	return slices.Contains(expectedTypes, expectedType)
+}
+
+func parseObject(field map[string]interface{}, schema *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {
+	if !sliceInclude(expectedTypes, "object") && (schema.AdditionalProperties == nil || !schema.AdditionalProperties.Allows) {
 		return nil, fmt.Errorf("expected object type or AdditionalProperties allowed for path %s, got %v", path, field)
 	}
 
@@ -149,8 +147,8 @@ func parseObject(field map[string]interface{}, schema *spec.Schema, path, expect
 	return expressionsFields, nil
 }
 
-func parseArray(field []interface{}, schema *spec.Schema, path, expectedType string) ([]variable.FieldDescriptor, error) {
-	if expectedType != "array" {
+func parseArray(field []interface{}, schema *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {
+	if !sliceInclude(expectedTypes, "array") {
 		return nil, fmt.Errorf("expected array type for path %s, got %v", path, field)
 	}
 
@@ -171,22 +169,23 @@ func parseArray(field []interface{}, schema *spec.Schema, path, expectedType str
 	return expressionsFields, nil
 }
 
-func parseString(field string, schema *spec.Schema, path, expectedType string) ([]variable.FieldDescriptor, error) {
+func parseString(field string, schema *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {
 	ok, err := isStandaloneExpression(field)
 	if err != nil {
 		return nil, err
 	}
+
 	if ok {
 		return []variable.FieldDescriptor{{
 			Expressions:          []string{strings.Trim(field, "${}")},
-			ExpectedType:         expectedType,
+			ExpectedTypes:        expectedTypes,
 			ExpectedSchema:       schema,
 			Path:                 path,
 			StandaloneExpression: true,
 		}}, nil
 	}
 
-	if expectedType != "string" && expectedType != schemaTypeAny {
+	if !sliceInclude(expectedTypes, "string") && !sliceInclude(expectedTypes, schemaTypeAny) {
 		return nil, fmt.Errorf("expected string type or AdditionalProperties for path %s, got %v", path, field)
 	}
 
@@ -196,29 +195,26 @@ func parseString(field string, schema *spec.Schema, path, expectedType string) (
 	}
 	if len(expressions) > 0 {
 		return []variable.FieldDescriptor{{
-			Expressions:  expressions,
-			ExpectedType: expectedType,
-			Path:         path,
+			Expressions:   expressions,
+			ExpectedTypes: expectedTypes,
+			Path:          path,
 		}}, nil
 	}
 	return nil, nil
 }
 
-func parseScalarTypes(field interface{}, _ *spec.Schema, path, expectedType string) ([]variable.FieldDescriptor, error) {
-	if expectedType == schemaTypeAny {
-		return nil, nil
-	}
+func parseScalarTypes(field interface{}, _ *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {
 	// perform type checks for scalar types
-	switch expectedType {
-	case "number":
+	switch {
+	case sliceInclude(expectedTypes, "number"):
 		if _, ok := field.(float64); !ok {
 			return nil, fmt.Errorf("expected number type for path %s, got %T", path, field)
 		}
-	case "integer", "int":
+	case sliceInclude(expectedTypes, "int"), sliceInclude(expectedTypes, "integer"):
 		if !isInteger(field) {
 			return nil, fmt.Errorf("expected integer type for path %s, got %T", path, field)
 		}
-	case "boolean", "bool":
+	case sliceInclude(expectedTypes, "boolean"), sliceInclude(expectedTypes, "bool"):
 		if _, ok := field.(bool); !ok {
 			return nil, fmt.Errorf("expected boolean type for path %s, got %T", path, field)
 		}
