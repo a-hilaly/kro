@@ -67,22 +67,8 @@ func parseResource(resource interface{}, schema *spec.Schema, path string) ([]va
 	}
 }
 
-func validateSchema(schema *spec.Schema, path string) error {
-	if schema == nil {
-		return fmt.Errorf("schema is nil for path %s", path)
-	}
-	if len(schema.Type) != 1 {
-		if len(schema.OneOf) > 0 {
-			schema.Type = []string{schema.OneOf[0].Type[0]}
-		} else {
-			return fmt.Errorf("found schema type that is not a single type: %v", schema.Type)
-		}
-	}
-	return nil
-}
-
 func getExpectedTypes(schema *spec.Schema) ([]string, error) {
-	// handle "x-kubernetes-int-or-string"
+	// Handle "x-kubernetes-int-or-string" extension
 	if ext, ok := schema.VendorExtensible.Extensions[xKubernetesIntOrString]; ok {
 		enabled, ok := ext.(bool)
 		if !ok {
@@ -91,6 +77,24 @@ func getExpectedTypes(schema *spec.Schema) ([]string, error) {
 		if enabled {
 			return []string{"string", "integer"}, nil
 		}
+	}
+
+	// Handle OneOf schemas
+	if len(schema.OneOf) > 0 {
+		var types []string
+		for _, subType := range schema.OneOf {
+			types = append(types, subType.Type...)
+		}
+		return types, nil
+	}
+
+	// Handle AnyOf schemas
+	if len(schema.AnyOf) > 0 {
+		var types []string
+		for _, subType := range schema.AnyOf {
+			types = append(types, subType.Type...)
+		}
+		return types, nil
 	}
 
 	if schema.Type[0] != "" {
@@ -108,6 +112,17 @@ func getExpectedTypes(schema *spec.Schema) ([]string, error) {
 
 func sliceInclude(expectedTypes []string, expectedType string) bool {
 	return slices.Contains(expectedTypes, expectedType)
+}
+
+func validateSchema(schema *spec.Schema, path string) error {
+	if schema == nil {
+		return fmt.Errorf("schema is nil for path %s", path)
+	}
+	// Ensure the schema has at least one valid construct
+	if len(schema.Type) == 0 && len(schema.OneOf) == 0 && len(schema.AnyOf) == 0 && schema.AdditionalProperties == nil {
+		return fmt.Errorf("schema at path %s has no valid type, OneOf, AnyOf, or AdditionalProperties", path)
+	}
+	return nil
 }
 
 func parseObject(field map[string]interface{}, schema *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {

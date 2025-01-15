@@ -663,6 +663,21 @@ func TestParserEdgeCases(t *testing.T) {
 			}},
 			expectedError: "",
 		},
+		{
+			name: "invalid schema",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"name": {SchemaProps: spec.SchemaProps{Type: nil}},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"name": "John",
+			},
+			expectedError: "schema at path name has no valid type, OneOf, AnyOf, or AdditionalProperties",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -878,4 +893,225 @@ func TestNestedXKubernetesIntOrString(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestOneOfAndAnyOf(t *testing.T) {
+	testCases := []struct {
+		name          string
+		schema        *spec.Schema
+		resource      interface{}
+		wantErr       bool
+		expectedError string
+	}{
+		{
+			name: "Valid OneOf - matches first schema (string)",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"field": {
+							SchemaProps: spec.SchemaProps{
+								OneOf: []spec.Schema{
+									{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+									{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"field": "valid string",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid OneOf - matches second schema (integer)",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"field": {
+							SchemaProps: spec.SchemaProps{
+								OneOf: []spec.Schema{
+									{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+									{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"field": 42,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid OneOf - does not match any schema",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"field": {
+							SchemaProps: spec.SchemaProps{
+								OneOf: []spec.Schema{
+									{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+									{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"field": true,
+			},
+			wantErr:       true,
+			expectedError: "expected integer type for path field, got bool",
+		},
+		{
+			name: "Valid AnyOf - matches one schema (string)",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"field": {
+							SchemaProps: spec.SchemaProps{
+								AnyOf: []spec.Schema{
+									{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+									{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"field": "valid string",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid AnyOf - matches one schema (integer)",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"field": {
+							SchemaProps: spec.SchemaProps{
+								AnyOf: []spec.Schema{
+									{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+									{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"field": 42,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid AnyOf - does not match any schema",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"field": {
+							SchemaProps: spec.SchemaProps{
+								AnyOf: []spec.Schema{
+									{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+									{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"field": true,
+			},
+			wantErr:       true,
+			expectedError: "expected integer type for path field, got bool",
+		},
+		{
+			name: "Nested OneOf - valid nested schema (string)",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"nestedField": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"object"},
+								Properties: map[string]spec.Schema{
+									"innerField": {
+										SchemaProps: spec.SchemaProps{
+											OneOf: []spec.Schema{
+												{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+												{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"nestedField": map[string]interface{}{
+					"innerField": "valid string",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Nested OneOf - invalid nested schema",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"nestedField": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"object"},
+								Properties: map[string]spec.Schema{
+									"innerField": {
+										SchemaProps: spec.SchemaProps{
+											OneOf: []spec.Schema{
+												{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+												{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"nestedField": map[string]interface{}{
+					"innerField": true,
+				},
+			},
+			wantErr:       true,
+			expectedError: "expected integer type for path nestedField.innerField, got bool",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseResource(tc.resource, tc.schema, "")
+			if tc.wantErr && err == nil {
+				t.Errorf("Expected error but got none")
+			} else if !tc.wantErr && err != nil {
+				t.Errorf("Did not expect error but got: %v", err)
+			} else if tc.wantErr && err != nil && tc.expectedError != "" && err.Error() != tc.expectedError {
+				t.Errorf("Expected error message %q, got %q", tc.expectedError, err.Error())
+			}
+		})
+	}
 }
