@@ -1,13 +1,14 @@
 apiVersion: kro.run/v1alpha1
 kind: ResourceGroup
 metadata:
-  name: ekscontrollers.kro.run
+  name: ecrcontrollers.kro.run
+  namespace: kro
 spec:
   schema:
     apiVersion: v1alpha1
-    kind: EKSController
+    kind: ECRController
     spec:
-      name: string | default=eks-controller
+      name: string | default=ecr-controller
       namespace: string | default=default
       values:
         aws:
@@ -19,14 +20,13 @@ spec:
         iamRole:
           maxSessionDuration: integer | default=3600
           oidcProvider: string | required=true
-          roleDescription: string | default=IRSA role for ACK EKS controller deployement on EKS cluster using kro Resource group
+          roleDescription: string | default=IRSA role for ACK ECR controller deployment on EKS cluster using kro Resource group
         iamPolicy:
-          # would prefer to add a policyDocument here, need to support multiline string here
-          description: string | default="policy for eks controller"
+          description: string | default="policy for ecr controller"
         image:
           deletePolicy: string | default=delete
-          repository: string | default=public.ecr.aws/aws-controllers-k8s/eks-controller
-          tag: string | default=1.4.7
+          repository: string | default=public.ecr.aws/aws-controllers-k8s/ecr-controller
+          tag: string | default=1.0.19
           resources:
             requests:
               memory: string | default=64Mi
@@ -38,17 +38,17 @@ spec:
           enabled: boolean | default=false
           level: string | default=info
         serviceAccount:
-          name: string | default=eks-controller-sa
+          name: string | default=ecr-controller-sa
   resources:
-  - id: eksCRDGroup
+  - id: ecrCRDGroup
     template:
       apiVersion: kro.run/v1alpha1
-      kind: EKSCRDGroup
+      kind: ECRCRDGroup
       metadata:
         name: ${schema.spec.name}-crd-group
       spec:
         name: ${schema.spec.name}-crd-group
-  - id: eksControllerIamPolicy
+  - id: ecrControllerIamPolicy
     template:
       apiVersion: iam.services.k8s.aws/v1alpha1
       kind: Policy
@@ -62,20 +62,30 @@ spec:
             "Version": "2012-10-17",
             "Statement": [
               {
-                "Sid": "VisualEditor0",
                 "Effect": "Allow",
                 "Action": [
-                  "eks:*",
-                  "iam:GetRole",
-                  "iam:PassRole",
-                  "iam:ListAttachedRolePolicies",
-                  "ec2:DescribeSubnets"
+                  "ecr:*",
+                  "cloudtrail:LookupEvents"
                 ],
                 "Resource": "*"
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "iam:CreateServiceLinkedRole"
+                ],
+                "Resource": "*",
+                "Condition": {
+                  "StringEquals": {
+                    "iam:AWSServiceName": [
+                      "replication.ecr.amazonaws.com"
+                    ]
+                  }
+                }
               }
             ]
           }
-  - id: eksControllerIamRole
+  - id: ecrControllerIamRole
     template:
       apiVersion: iam.services.k8s.aws/v1alpha1
       kind: Role
@@ -87,7 +97,7 @@ spec:
         description: ${schema.spec.values.iamRole.roleDescription}
         maxSessionDuration: ${schema.spec.values.iamRole.maxSessionDuration}
         policies:
-        - ${eksControllerIamPolicy.status.ackResourceMetadata.arn}
+        - ${ecrControllerIamPolicy.status.ackResourceMetadata.arn}
         assumeRolePolicyDocument: >
           {
             "Version":"2012-10-17",
@@ -108,7 +118,7 @@ spec:
         name: ${schema.spec.values.serviceAccount.name}
         namespace: ${schema.spec.namespace}
         annotations:
-          eks.amazonaws.com/role-arn : ${eksControllerIamRole.status.ackResourceMetadata.arn}
+          eks.amazonaws.com/role-arn : ${ecrControllerIamRole.status.ackResourceMetadata.arn}
   - id: deployment
     template:
       apiVersion: apps/v1
@@ -117,19 +127,19 @@ spec:
         name: ${schema.spec.name}-deployment
         namespace: ${schema.spec.namespace}
         labels:
-          app.kubernetes.io.name: ${schema.spec.name}-deployment
-          app.kubernetes.io.instance: ${schema.spec.name}
+          app.kubernetes.io/name: ${schema.spec.name}-deployment
+          app.kubernetes.io/instance: ${schema.spec.name}
       spec:
         replicas: ${schema.spec.values.deployment.replicas}
         selector:
           matchLabels:
-            app.kubernetes.io.name: ${schema.spec.name}-deployment
-            app.kubernetes.io.instance: ${schema.spec.name}
+            app.kubernetes.io/name: ${schema.spec.name}-deployment
+            app.kubernetes.io/instance: ${schema.spec.name}
         template:
           metadata:
             labels:
-              app.kubernetes.io.name: ${schema.spec.name}-deployment
-              app.kubernetes.io.instance: ${schema.spec.name}
+              app.kubernetes.io/name: ${schema.spec.name}-deployment
+              app.kubernetes.io/instance: ${schema.spec.name}
           spec:
             serviceAccountName: ${serviceAccount.metadata.name}
             containers:
@@ -206,25 +216,10 @@ spec:
         - list
         - watch
       - apiGroups:
-        - ec2.services.k8s.aws
+        - ecr.services.k8s.aws
         resources:
-        - securitygroups
-        - securitygroups/status
-        - subnets
-        - subnets/status
-        verbs:
-        - get
-        - list
-      - apiGroups:
-        - eks.services.k8s.aws
-        resources:
-        - accessentries
-        - addons
-        - clusters
-        - fargateprofiles
-        - identityproviderconfigs
-        - nodegroups
-        - podidentityassociations
+        - pullthroughcacherules
+        - repositories
         verbs:
         - create
         - delete
@@ -234,35 +229,14 @@ spec:
         - update
         - watch
       - apiGroups:
-        - eks.services.k8s.aws
+        - ecr.services.k8s.aws
         resources:
-        - accessentries/status
-        - addons/status
-        - clusters/status
-        - fargateprofiles/status
-        - identityproviderconfigs/status
-        - nodegroups/status
-        - podidentityassociations/status
+        - pullthroughcacherules/status
+        - repositories/status
         verbs:
         - get
         - patch
         - update
-      - apiGroups:
-        - iam.services.k8s.aws
-        resources:
-        - roles
-        - roles/status
-        verbs:
-        - get
-        - list
-      - apiGroups:
-        - kms.services.k8s.aws
-        resources:
-        - keys
-        - keys/status
-        verbs:
-        - get
-        - list
       - apiGroups:
         - services.k8s.aws
         resources:
