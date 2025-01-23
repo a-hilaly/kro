@@ -22,8 +22,8 @@ import (
 	"github.com/gobuffalo/flect"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/pkg/metadata"
+	"github.com/kro-run/kro/api/v1alpha1"
+	"github.com/kro-run/kro/pkg/metadata"
 )
 
 // cleanupResourceGroup handles the deletion of a ResourceGroup by shutting down its associated

@@ -31,11 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	xv1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	kroclient "github.com/awslabs/kro/pkg/client"
-	resourcegroupctrl "github.com/awslabs/kro/pkg/controller/resourcegroup"
-	"github.com/awslabs/kro/pkg/dynamiccontroller"
-	"github.com/awslabs/kro/pkg/graph"
+	xv1alpha1 "github.com/kro-run/kro/api/v1alpha1"
+	kroclient "github.com/kro-run/kro/pkg/client"
+	resourcegroupctrl "github.com/kro-run/kro/pkg/controller/resourcegroup"
+	"github.com/kro-run/kro/pkg/dynamiccontroller"
+	"github.com/kro-run/kro/pkg/graph"
 	//+kubebuilder:scaffold:imports
 )
 

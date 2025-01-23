@@ -19,7 +19,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/awslabs/kro/api/v1alpha1"
+	"github.com/kro-run/kro/api/v1alpha1"
 )
 
 var (

@@ -22,11 +22,11 @@ import (
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/awslabs/kro/api/v1alpha1"
-	instancectrl "github.com/awslabs/kro/pkg/controller/instance"
-	"github.com/awslabs/kro/pkg/dynamiccontroller"
-	"github.com/awslabs/kro/pkg/graph"
-	"github.com/awslabs/kro/pkg/metadata"
+	"github.com/kro-run/kro/api/v1alpha1"
+	instancectrl "github.com/kro-run/kro/pkg/controller/instance"
+	"github.com/kro-run/kro/pkg/dynamiccontroller"
+	"github.com/kro-run/kro/pkg/graph"
+	"github.com/kro-run/kro/pkg/metadata"
 )
 
 // reconcileResourceGroup orchestrates the reconciliation of a ResourceGroup by:

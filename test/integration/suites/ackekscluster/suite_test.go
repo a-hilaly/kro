@@ -29,9 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	krov1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	ctrlinstance "github.com/awslabs/kro/pkg/controller/instance"
-	"github.com/awslabs/kro/test/integration/environment"
+	krov1alpha1 "github.com/kro-run/kro/api/v1alpha1"
+	ctrlinstance "github.com/kro-run/kro/pkg/controller/instance"
+	"github.com/kro-run/kro/test/integration/environment"
 )
 
 var env *environment.Environment

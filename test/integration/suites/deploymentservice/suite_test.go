@@ -29,9 +29,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	krov1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	ctrlinstance "github.com/awslabs/kro/pkg/controller/instance"
-	"github.com/awslabs/kro/test/integration/environment"
+	krov1alpha1 "github.com/kro-run/kro/api/v1alpha1"
+	ctrlinstance "github.com/kro-run/kro/pkg/controller/instance"
+	"github.com/kro-run/kro/test/integration/environment"
 )
 
 var env *environment.Environment

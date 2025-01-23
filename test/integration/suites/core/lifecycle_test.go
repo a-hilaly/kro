@@ -28,8 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	krov1alpha1 "github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/pkg/testutil/generator"
+	krov1alpha1 "github.com/kro-run/kro/api/v1alpha1"
+	"github.com/kro-run/kro/pkg/testutil/generator"
 )
 
 var _ = Describe("Update", func() {

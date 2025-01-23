@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/awslabs/kro/api/v1alpha1"
+	"github.com/kro-run/kro/api/v1alpha1"
 )
 
 const kroFinalizer = v1alpha1.KroDomainName + "/finalizer"

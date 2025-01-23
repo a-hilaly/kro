@@ -16,7 +16,7 @@ package graph
 import (
 	"testing"
 
-	"github.com/awslabs/kro/api/v1alpha1"
+	"github.com/kro-run/kro/api/v1alpha1"
 )
 
 func TestValidateRGResourceNames(t *testing.T) {
