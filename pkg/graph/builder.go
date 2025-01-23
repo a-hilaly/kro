@@ -28,17 +28,17 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 
-	"github.com/awslabs/kro/api/v1alpha1"
-	krocel "github.com/awslabs/kro/pkg/cel"
-	"github.com/awslabs/kro/pkg/cel/ast"
-	"github.com/awslabs/kro/pkg/graph/crd"
-	"github.com/awslabs/kro/pkg/graph/dag"
-	"github.com/awslabs/kro/pkg/graph/emulator"
-	"github.com/awslabs/kro/pkg/graph/parser"
-	"github.com/awslabs/kro/pkg/graph/schema"
-	"github.com/awslabs/kro/pkg/graph/variable"
-	"github.com/awslabs/kro/pkg/metadata"
-	"github.com/awslabs/kro/pkg/simpleschema"
+	"github.com/kro-run/kro/api/v1alpha1"
+	krocel "github.com/kro-run/kro/pkg/cel"
+	"github.com/kro-run/kro/pkg/cel/ast"
+	"github.com/kro-run/kro/pkg/graph/crd"
+	"github.com/kro-run/kro/pkg/graph/dag"
+	"github.com/kro-run/kro/pkg/graph/emulator"
+	"github.com/kro-run/kro/pkg/graph/parser"
+	"github.com/kro-run/kro/pkg/graph/schema"
+	"github.com/kro-run/kro/pkg/graph/variable"
+	"github.com/kro-run/kro/pkg/metadata"
+	"github.com/kro-run/kro/pkg/simpleschema"
 )
 
 // NewBuilder creates a new GraphBuilder instance.

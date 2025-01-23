@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"github.com/awslabs/kro/pkg/testutil/generator"
+	"github.com/kro-run/kro/pkg/testutil/generator"
 )
 
 var _ = Describe("CRD", func() {

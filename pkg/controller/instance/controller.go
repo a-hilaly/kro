@@ -27,10 +27,10 @@ import (
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/awslabs/kro/api/v1alpha1"
-	kroclient "github.com/awslabs/kro/pkg/client"
-	"github.com/awslabs/kro/pkg/graph"
-	"github.com/awslabs/kro/pkg/metadata"
+	"github.com/kro-run/kro/api/v1alpha1"
+	kroclient "github.com/kro-run/kro/pkg/client"
+	"github.com/kro-run/kro/pkg/graph"
+	"github.com/kro-run/kro/pkg/metadata"
 )
 
 // ReconcileConfig holds configuration parameters for the recnociliation process.

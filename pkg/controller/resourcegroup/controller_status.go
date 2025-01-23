@@ -22,9 +22,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/awslabs/kro/api/v1alpha1"
-	"github.com/awslabs/kro/pkg/metadata"
 	"github.com/go-logr/logr"
+	"github.com/kro-run/kro/api/v1alpha1"
+	"github.com/kro-run/kro/pkg/metadata"
 )
 
 // StatusProcessor handles the processing of ResourceGroup status updates

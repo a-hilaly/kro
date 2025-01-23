@@ -25,10 +25,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/awslabs/kro/pkg/controller/instance/delta"
-	"github.com/awslabs/kro/pkg/metadata"
-	"github.com/awslabs/kro/pkg/requeue"
-	"github.com/awslabs/kro/pkg/runtime"
+	"github.com/kro-run/kro/pkg/controller/instance/delta"
+	"github.com/kro-run/kro/pkg/metadata"
+	"github.com/kro-run/kro/pkg/requeue"
+	"github.com/kro-run/kro/pkg/runtime"
 )
 
 // instanceGraphReconciler is responsible for reconciling a single instance and
