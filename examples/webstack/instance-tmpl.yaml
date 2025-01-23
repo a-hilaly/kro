@@ -3,7 +3,7 @@ kind: WebStack
 metadata:
   name: test-app
 spec:
-  name: $WEB_STACK_NAME
+  name: $RESOURCES_NAME
   image: candonov/s3-demo-app
   s3bucket:
     enabled: true
