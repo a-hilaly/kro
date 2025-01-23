@@ -24,10 +24,10 @@ import (
 func eksCluster(
 	namespace, name string,
 ) (
-	*krov1alpha1.ResourceGroup,
+	*krov1alpha1.ResourceGraphDefinition,
 	func(namespace, name, version string) *unstructured.Unstructured,
 ) {
-	resourcegroup := generator.NewResourceGroup(name,
+	resourcegraphdefinition := generator.NewResourceGraphDefinition(name,
 		generator.WithNamespace(namespace),
 		generator.WithSchema(
 			"EKSCluster", "v1alpha1",
@@ -80,7 +80,7 @@ func eksCluster(
 			},
 		}
 	}
-	return resourcegroup, instanceGenerator
+	return resourcegraphdefinition, instanceGenerator
 }
 
 func vpcDef(namespace string) map[string]interface{} {

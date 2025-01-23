@@ -33,7 +33,7 @@ import (
 
 // instanceGraphReconciler is responsible for reconciling a single instance and
 // and its associated sub-resources. It executes the reconciliation logic based
-// on the graph inferred from the ResourceGroup analysis.
+// on the graph inferred from the ResourceGraphDefinition analysis.
 type instanceGraphReconciler struct {
 	log logr.Logger
 	// gvr represents the Group, Version, and Resource of the custom resource
@@ -41,7 +41,7 @@ type instanceGraphReconciler struct {
 	gvr schema.GroupVersionResource
 	// client is a dynamic client for interacting with the Kubernetes API server
 	client dynamic.Interface
-	// runtime is the runtime representation of the ResourceGroup. It holds the
+	// runtime is the runtime representation of the ResourceGraphDefinition. It holds the
 	// information about the instance and its sub-resources, the CEL expressions
 	// their dependencies, and the resolved values... etc
 	runtime runtime.Interface

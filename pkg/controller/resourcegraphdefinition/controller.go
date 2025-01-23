@@ -11,7 +11,7 @@
 // express or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package resourcegroup
+package resourcegraphdefinition
 
 import (
 	"context"
@@ -31,12 +31,12 @@ import (
 	"github.com/kro-run/kro/pkg/metadata"
 )
 
-//+kubebuilder:rbac:groups=kro.run,resources=resourcegroups,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=kro.run,resources=resourcegroups/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=kro.run,resources=resourcegroups/finalizers,verbs=update
+//+kubebuilder:rbac:groups=kro.run,resources=resourcegraphdefinitions,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=kro.run,resources=resourcegraphdefinitions/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=kro.run,resources=resourcegraphdefinitions/finalizers,verbs=update
 
-// ResourceGroupReconciler reconciles a ResourceGroup object
-type ResourceGroupReconciler struct {
+// ResourceGraphDefinitionReconciler reconciles a ResourceGraphDefinition object
+type ResourceGraphDefinitionReconciler struct {
 	log        logr.Logger
 	rootLogger logr.Logger
 
@@ -51,20 +51,20 @@ type ResourceGroupReconciler struct {
 	dynamicController *dynamiccontroller.DynamicController
 }
 
-func NewResourceGroupReconciler(
+func NewResourceGraphDefinitionReconciler(
 	log logr.Logger,
 	mgrClient client.Client,
 	clientSet *kroclient.Set,
 	allowCRDDeletion bool,
 	dynamicController *dynamiccontroller.DynamicController,
 	builder *graph.Builder,
-) *ResourceGroupReconciler {
+) *ResourceGraphDefinitionReconciler {
 	crdWrapper := clientSet.CRD(kroclient.CRDWrapperConfig{
 		Log: log,
 	})
 	rgLogger := log.WithName("controller.resourceGroup")
 
-	return &ResourceGroupReconciler{
+	return &ResourceGraphDefinitionReconciler{
 		rootLogger:        log,
 		log:               rgLogger,
 		clientSet:         clientSet,
@@ -78,25 +78,25 @@ func NewResourceGroupReconciler(
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ResourceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ResourceGraphDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.ResourceGroup{}).
+		For(&v1alpha1.ResourceGraphDefinition{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
-		Complete(reconcile.AsReconciler[*v1alpha1.ResourceGroup](mgr.GetClient(), r))
+		Complete(reconcile.AsReconciler[*v1alpha1.ResourceGraphDefinition](mgr.GetClient(), r))
 }
 
-func (r *ResourceGroupReconciler) Reconcile(ctx context.Context, resourcegroup *v1alpha1.ResourceGroup) (ctrl.Result, error) {
-	rlog := r.log.WithValues("resourcegroup", types.NamespacedName{Namespace: resourcegroup.Namespace, Name: resourcegroup.Name})
+func (r *ResourceGraphDefinitionReconciler) Reconcile(ctx context.Context, resourcegraphdefinition *v1alpha1.ResourceGraphDefinition) (ctrl.Result, error) {
+	rlog := r.log.WithValues("resourcegraphdefinition", types.NamespacedName{Namespace: resourcegraphdefinition.Namespace, Name: resourcegraphdefinition.Name})
 	ctx = log.IntoContext(ctx, rlog)
 
-	if !resourcegroup.DeletionTimestamp.IsZero() {
-		rlog.V(1).Info("ResourceGroup is being deleted")
-		if err := r.cleanupResourceGroup(ctx, resourcegroup); err != nil {
+	if !resourcegraphdefinition.DeletionTimestamp.IsZero() {
+		rlog.V(1).Info("ResourceGraphDefinition is being deleted")
+		if err := r.cleanupResourceGraphDefinition(ctx, resourcegraphdefinition); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		rlog.V(1).Info("Setting resourcegroup as unmanaged")
-		if err := r.setUnmanaged(ctx, resourcegroup); err != nil {
+		rlog.V(1).Info("Setting resourcegraphdefinition as unmanaged")
+		if err := r.setUnmanaged(ctx, resourcegraphdefinition); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -104,15 +104,15 @@ func (r *ResourceGroupReconciler) Reconcile(ctx context.Context, resourcegroup *
 	}
 
 	rlog.V(1).Info("Setting resource group as managed")
-	if err := r.setManaged(ctx, resourcegroup); err != nil {
+	if err := r.setManaged(ctx, resourcegraphdefinition); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	rlog.V(1).Info("Syncing resourcegroup")
-	topologicalOrder, resourcesInformation, reconcileErr := r.reconcileResourceGroup(ctx, resourcegroup)
+	rlog.V(1).Info("Syncing resourcegraphdefinition")
+	topologicalOrder, resourcesInformation, reconcileErr := r.reconcileResourceGraphDefinition(ctx, resourcegraphdefinition)
 
-	rlog.V(1).Info("Setting resourcegroup status")
-	if err := r.setResourceGroupStatus(ctx, resourcegroup, topologicalOrder, resourcesInformation, reconcileErr); err != nil {
+	rlog.V(1).Info("Setting resourcegraphdefinition status")
+	if err := r.setResourceGraphDefinitionStatus(ctx, resourcegraphdefinition, topologicalOrder, resourcesInformation, reconcileErr); err != nil {
 		return ctrl.Result{}, err
 	}
 
