@@ -2,6 +2,7 @@ apiVersion: kro.run/v1alpha1
 kind: ResourceGroup
 metadata:
   name: iamcrdgroup.kro.run
+  namespace: kro
 spec:
   schema:
     apiVersion: v1alpha1
