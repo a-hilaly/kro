@@ -72,7 +72,7 @@ type Interface interface {
 
 // ResourceDescriptor provides metadata about a resource.
 //
-// Note: the reason why we do not import resourcegroup/graph.Resource here is
+// Note: the reason why we do not import resourcegraphdefinition/graph.Resource here is
 // to avoid a circular dependency between the runtime and the graph packages.
 // Had to scratch my head for a while to figure this out. But here is the
 // quick overview:

@@ -45,8 +45,8 @@ var _ = Describe("Update", func() {
 		}
 		Expect(env.Client.Create(ctx, ns)).To(Succeed())
 
-		// Create ResourceGroup for a simple deployment service
-		rg := generator.NewResourceGroup("test-update",
+		// Create ResourceGraphDefinition for a simple deployment service
+		rg := generator.NewResourceGraphDefinition("test-update",
 			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestUpdate", "v1alpha1",
@@ -96,15 +96,15 @@ var _ = Describe("Update", func() {
 
 		Expect(env.Client.Create(ctx, rg)).To(Succeed())
 
-		// Verify ResourceGroup is ready
-		createdRG := &krov1alpha1.ResourceGroup{}
+		// Verify ResourceGraphDefinition is ready
+		createdRG := &krov1alpha1.ResourceGraphDefinition{}
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
 				Name:      rg.Name,
 				Namespace: namespace,
 			}, createdRG)
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(createdRG.Status.State).To(Equal(krov1alpha1.ResourceGroupStateActive))
+			g.Expect(createdRG.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
 		}, 10*time.Second, time.Second).Should(Succeed())
 
 		// Create initial instance

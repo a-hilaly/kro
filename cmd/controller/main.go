@@ -33,7 +33,7 @@ import (
 
 	xv1alpha1 "github.com/kro-run/kro/api/v1alpha1"
 	kroclient "github.com/kro-run/kro/pkg/client"
-	resourcegroupctrl "github.com/kro-run/kro/pkg/controller/resourcegroup"
+	resourcegraphdefinitionctrl "github.com/kro-run/kro/pkg/controller/resourcegraphdefinition"
 	"github.com/kro-run/kro/pkg/dynamiccontroller"
 	"github.com/kro-run/kro/pkg/graph"
 	//+kubebuilder:scaffold:imports
@@ -159,7 +159,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	reconciler := resourcegroupctrl.NewResourceGroupReconciler(
+	reconciler := resourcegraphdefinitionctrl.NewResourceGraphDefinitionReconciler(
 		rootLogger,
 		mgr.GetClient(),
 		set,
@@ -170,16 +170,16 @@ func main() {
 	err = ctrl.NewControllerManagedBy(
 		mgr,
 	).For(
-		&xv1alpha1.ResourceGroup{},
+		&xv1alpha1.ResourceGraphDefinition{},
 	).WithEventFilter(
 		predicate.GenerationChangedPredicate{},
 	).WithOptions(
 		ctrlrtcontroller.Options{
 			MaxConcurrentReconciles: resourceGroupConcurrentReconciles,
 		},
-	).Complete(reconcile.AsReconciler[*xv1alpha1.ResourceGroup](mgr.GetClient(), reconciler))
+	).Complete(reconcile.AsReconciler[*xv1alpha1.ResourceGraphDefinition](mgr.GetClient(), reconciler))
 	if err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ResourceGroup")
+		setupLog.Error(err, "unable to create controller", "controller", "ResourceGraphDefinition")
 		os.Exit(1)
 	}
 

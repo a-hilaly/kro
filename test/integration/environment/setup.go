@@ -31,7 +31,7 @@ import (
 	krov1alpha1 "github.com/kro-run/kro/api/v1alpha1"
 	kroclient "github.com/kro-run/kro/pkg/client"
 	ctrlinstance "github.com/kro-run/kro/pkg/controller/instance"
-	ctrlresourcegroup "github.com/kro-run/kro/pkg/controller/resourcegroup"
+	ctrlresourcegraphdefinition "github.com/kro-run/kro/pkg/controller/resourcegraphdefinition"
 	"github.com/kro-run/kro/pkg/dynamiccontroller"
 	"github.com/kro-run/kro/pkg/graph"
 )
@@ -65,7 +65,7 @@ func New(controllerConfig ControllerConfig) (*Environment, error) {
 
 	env.TestEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			// resourcegroup CRD
+			// resourcegraphdefinition CRD
 			filepath.Join("../../../..", "config", "crd", "bases"),
 			// ACK ec2 CRDs
 			filepath.Join("../..", "crds", "ack-ec2-controller"),
@@ -150,7 +150,7 @@ func (e *Environment) setupController() error {
 		}
 	}()
 
-	rgReconciler := ctrlresourcegroup.NewResourceGroupReconciler(
+	rgReconciler := ctrlresourcegraphdefinition.NewResourceGraphDefinitionReconciler(
 		noopLogger(),
 		e.Client,
 		e.ClientSet,

@@ -64,7 +64,7 @@ The controllers are using the IAM controller to create the necessary roles for t
 
 5. Install the combined Resource Group controllers:
    ```
-   kubectl apply -f resourcegroup.yaml
+   kubectl apply -f resourcegraphdefinition.yaml
    ```
 6. Install the combined instance:
 

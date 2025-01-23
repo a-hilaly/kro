@@ -52,7 +52,7 @@ var (
 		"namespace",
 		"object",
 		"resource",
-		"resourcegroup",
+		"resourcegraphdefinition",
 		"resources",
 		"runtime",
 		"serviceAccountName",
@@ -85,20 +85,20 @@ func isKROReservedWord(word string) bool {
 	return false
 }
 
-// validateResourceGroupNamingConventions validates the naming conventions of
+// validateResourceGraphDefinitionNamingConventions validates the naming conventions of
 // the given resource group.
-func validateResourceGroupNamingConventions(rg *v1alpha1.ResourceGroup) error {
-	if !isValidKindName(rg.Spec.Schema.Kind) {
-		return fmt.Errorf("%s: kind '%s' is not a valid KRO kind name: must be UpperCamelCase", ErrNamingConvention, rg.Spec.Schema.Kind)
+func validateResourceGraphDefinitionNamingConventions(rgd *v1alpha1.ResourceGraphDefinition) error {
+	if !isValidKindName(rgd.Spec.Schema.Kind) {
+		return fmt.Errorf("%s: kind '%s' is not a valid KRO kind name: must be UpperCamelCase", ErrNamingConvention, rgd.Spec.Schema.Kind)
 	}
-	err := validateResourceIDs(rg)
+	err := validateResourceIDs(rgd)
 	if err != nil {
 		return fmt.Errorf("%s: %w", ErrNamingConvention, err)
 	}
 	return nil
 }
 
-// validateResource performs basic validation on a given resourcegroup.
+// validateResource performs basic validation on a given resourcegraphdefinition.
 // It checks that there are no duplicate resource ids and that the
 // resource ids are conformant to the KRO naming convention.
 //
@@ -106,9 +106,9 @@ func validateResourceGroupNamingConventions(rg *v1alpha1.ResourceGroup) error {
 // - The id should start with a lowercase letter.
 // - The id should only contain alphanumeric characters.
 // - does not contain any special characters, underscores, or hyphens.
-func validateResourceIDs(rg *v1alpha1.ResourceGroup) error {
+func validateResourceIDs(rgd *v1alpha1.ResourceGraphDefinition) error {
 	seen := make(map[string]struct{})
-	for _, res := range rg.Spec.Resources {
+	for _, res := range rgd.Spec.Resources {
 		if isKROReservedWord(res.ID) {
 			return fmt.Errorf("id %s is a reserved keyword in KRO", res.ID)
 		}

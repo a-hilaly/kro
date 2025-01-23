@@ -24,10 +24,10 @@ import (
 func networkingStack(
 	name, namespace string,
 ) (
-	*krov1alpha1.ResourceGroup,
+	*krov1alpha1.ResourceGraphDefinition,
 	func(namespace, name string) *unstructured.Unstructured,
 ) {
-	resourcegroup := generator.NewResourceGroup(name,
+	resourcegraphdefinition := generator.NewResourceGraphDefinition(name,
 		generator.WithNamespace(namespace),
 		generator.WithSchema(
 			"NetworkingStack", "v1alpha1",
@@ -66,7 +66,7 @@ func networkingStack(
 			},
 		}
 	}
-	return resourcegroup, instanceGenerator
+	return resourcegraphdefinition, instanceGenerator
 }
 
 func vpcDef() map[string]interface{} {

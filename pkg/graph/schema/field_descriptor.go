@@ -28,7 +28,7 @@ import (
 // Isn't yet defined in the schema, but we want to add it to the schema.
 //
 // This is mainly used to generate the proper OpenAPI Schema for the status field
-// of a CRD (Created via a ResourceGroup).
+// of a CRD (Created via a ResourceGraphDefinition).
 //
 // For example, given the following status definition in simpleschema standard:
 // status:
