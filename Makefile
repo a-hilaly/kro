@@ -177,13 +177,13 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 .PHONY: image
 build-image: ## Build the kro controller images using ko build
 	$(WITH_GOFLAGS) KOCACHE=$(KOCACHE) KO_DOCKER_REPO="public.ecr.aws/kro/controller" \
-		ko build --bare github.com/awslabs/kro/cmd/controller \
+		ko build --bare github.com/kro-run/kro/cmd/controller \
 		--push=false --tags ${RELEASE_VERSION} --sbom=none
 
 .PHONY: publish
 publish-image: ## Publish the kro controller images to ECR
 	$(WITH_GOFLAGS) KOCACHE=$(KOCACHE) KO_DOCKER_REPO="public.ecr.aws/kro/controller" \
-		ko publish --bare github.com/awslabs/kro/cmd/controller \
+		ko publish --bare github.com/kro-run/kro/cmd/controller \
 		--tags ${RELEASE_VERSION} --sbom=none
 
 .PHONY: package-helm
