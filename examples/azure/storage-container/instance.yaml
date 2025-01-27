@@ -1,0 +1,9 @@
+apiVersion: kro.run/v1alpha1
+kind: AzureContainerDeployment
+metadata:
+  name: mystorage
+spec:
+  name: mystorage
+  namespace: mystorage
+  containerName: krocontainer
+  location: westus2
