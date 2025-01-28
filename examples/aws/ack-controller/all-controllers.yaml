@@ -1,0 +1,38 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGroup
+metadata:
+  name: ekscontrollers.kro.run
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: TestInfrastructure
+    spec:
+    
+    status:
+  resources:
+  - id: eksController
+    template: 
+      apiVersion: kro.run/v1alpha1
+      kind: ACKController
+      metadata:
+        name: my-kro-eks-controller
+        namespace: default
+      spec:
+        name: ack-eks-controller
+        namespace: default
+        values: 
+          aws:
+            accountID: "399481058530"
+          deployment: {}
+          iamRole:
+            oidcProvider: oidc.eks.us-west-2.amazonaws.com/id/50B8942190FBD3A2EF2BF6AB7D27B06B
+          iamPolicy: {}
+            repository: public.ecr.aws/aws-controllers-k8s/eks-controller
+            tag: v0.0.1
+            resources:
+              requests: {}
+              limits: {}
+          log:
+            enabled: true
+            level: debug
+          serviceAccount: {}
