@@ -1,0 +1,11 @@
+## CloudSQL
+apiVersion: kro.run/v1alpha1
+kind: CloudSQL
+metadata:
+  name: $CLOUDSQL_NAME
+  namespace: config-connector
+spec:
+  name: $CLOUDSQL_NAME
+  project: $GCP_PROJECT
+  primaryRegion: $PRIMARY_REGION
+  replicaRegion: $REPLICA_REGION
