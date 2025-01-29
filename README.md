@@ -67,19 +67,10 @@ kro is Kubernetes native and integrates seamlessly with existing tools to preser
     Building with Kubernetes means dealing with resources that need to operate and work together, and orchestrating this can get complex and difficult at scale.
     With this project, we're taking a first step in reducing the complexity of resource dependency management and customization, paving the way for a simple and scalable way to create complex custom resources for Kubernetes.
 
-5. **Do I need to have an AWS account to use this?**
-
-    No, you can use kro with any Kubernetes cluster.
-
-6. **Can I use this in production?**
+5. **Can I use this in production?**
 
    This project is in active development and not yet intended for production use.
    The *ResourceGraphDefinition* CRD and other APIs used in this project are not solidified and highly subject to change.
-
-7. **Will this be built into Amazon Elastic Kubernetes Service (EKS)?**
-
-    This project is a public experiment, and not currently integrated into Amazon EKS.
-    We welcome your feedback and want to hear about what works and what doesn't for your use cases, please let us know what you think.
 
 ## Community Participation
 
