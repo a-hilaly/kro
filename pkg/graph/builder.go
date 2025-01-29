@@ -61,7 +61,7 @@ func NewBuilder(
 }
 
 // Builder is an object that is responsible of constructing and managing
-// resourceGroups. It is responsible of transforming the resourceGroup CRD
+// resourceGraphDefinitions. It is responsible of transforming the resourceGraphDefinition CRD
 // into a runtime representation that can be used to create the resources in
 // the cluster.
 //
@@ -79,7 +79,7 @@ func NewBuilder(
 // If any of the above steps fail, the Builder will return an error.
 //
 // The resulting ResourceGraphDefinition object is a fulyl processed and validated
-// representation of a resource group CR, it's underlying resources, and the
+// representation of a resource graph definition CR, it's underlying resources, and the
 // relationships between the resources. This object can be used to instantiate
 // a "runtime" data structure that can be used to create the resources in the
 // cluster.
@@ -98,29 +98,29 @@ type Builder struct {
 
 // NewResourceGraphDefinition creates a new ResourceGraphDefinition object from the given ResourceGraphDefinition
 // CRD. The ResourceGraphDefinition object is a fully processed and validated representation
-// of the resource group CRD, it's underlying resources, and the relationships between
+// of the resource graph definition CRD, it's underlying resources, and the relationships between
 // the resources.
 func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphDefinition) (*Graph, error) {
-	// Before anything else, let's copy the resource group to avoid modifying the
+	// Before anything else, let's copy the resource graph definition to avoid modifying the
 	// original object.
-	rg := originalCR.DeepCopy()
+	rgd := originalCR.DeepCopy()
 
-	// There are a few steps to build a resource group:
-	// 1. Validate the naming convention of the resource group and its resources.
+	// There are a few steps to build a resource graph definition:
+	// 1. Validate the naming convention of the resource graph definition and its resources.
 	//    kro leverages CEL expressions to allow users to define new types and
 	//    express relationships between resources. This means that we need to ensure
 	//    that the names of the resources are valid to be used in CEL expressions.
 	//    for example name-something-something is not a valid name for a resource,
 	//    because in CEL - is a subtraction operator.
-	err := validateResourceGraphDefinitionNamingConventions(rg)
+	err := validateResourceGraphDefinitionNamingConventions(rgd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate resourcegraphdefinition: %w", err)
 	}
 
-	// Now that we did a basic validation of the resource group, we can start understanding
-	// the resources that are part of the resource group.
+	// Now that we did a basic validation of the resource graph definition, we can start understanding
+	// the resources that are part of the resource graph definition.
 
-	// For each resource in the resource group, we need to:
+	// For each resource in the resource graph definition, we need to:
 	// 1. Check if it looks like a valid Kubernetes resource. This means that it
 	//    has a group, version, and kind, and a metadata field.
 	// 2. Based the GVK, we need to load the OpenAPI schema for the resource.
@@ -142,7 +142,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 
 	// we'll also store the resources in a map for easy access later.
 	resources := make(map[string]*Resource)
-	for _, rgResource := range rg.Spec.Resources {
+	for _, rgResource := range rgd.Spec.Resources {
 		r, err := b.buildRGResource(rgResource, namespacedResources)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build resource '%v': %v", rgResource.ID, err)
@@ -151,7 +151,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	}
 
 	// At this stage we have a superficial understanding of the resources that are
-	// part of the resource group. We have the OpenAPI schema for each resource, and
+	// part of the resource graph definition. We have the OpenAPI schema for each resource, and
 	// we have extracted the CEL expressions from the schema.
 	//
 	// Before we get into the dependency graph computation, we need to understand
@@ -162,14 +162,14 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	// You might wonder why are we building the resources before the instance resource?
 	// That's because the instance status schema is inferred from the CEL expressions
 	// in the status field of the instance resource. Those CEL expressions refer to
-	// the resources defined in the resource group. Hence, we need to build the resources
+	// the resources defined in the resource graph definition. Hence, we need to build the resources
 	// first, to be able to generate a proper schema for the instance status.
 
 	//
 
 	// Next, we need to understand the instance definition. The instance is
 	// the resource users will create in their cluster, to request the creation of
-	// the resources defined in the resource group.
+	// the resources defined in the resource graph definition.
 	//
 	// The instance resource is a Kubernetes resource, differently from typical
 	// CRDs, users define the schema of the instance resource using the "SimpleSchema"
@@ -186,25 +186,25 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	// We need to:
 	// 1. Parse the instance spec fields adhering to the SimpleSchema format.
 	// 2. Extract CEL expressions from the status
-	// 3. Validate them against the resources defined in the resource group.
+	// 3. Validate them against the resources defined in the resource graph definition.
 	// 4. Infer the status schema based on the CEL expressions.
 
 	instance, err := b.buildInstanceResource(
-		rg.Spec.Schema.Group,
-		rg.Spec.Schema.APIVersion,
-		rg.Spec.Schema.Kind,
-		rg.Spec.Schema,
+		rgd.Spec.Schema.Group,
+		rgd.Spec.Schema.APIVersion,
+		rgd.Spec.Schema.Kind,
+		rgd.Spec.Schema,
 		// We need to pass the resources to the instance resource, so we can validate
 		// the CEL expressions in the context of the resources.
 		resources,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build resourcegraphdefinition '%v': %w", rg.Name, err)
+		return nil, fmt.Errorf("failed to build resourcegraphdefinition '%v': %w", rgd.Name, err)
 	}
 
 	// Before getting into the dependency graph, we need to validate the CEL expressions
 	// in the instance resource. In order to do that, we need to isolate each resource
-	// and evaluate the CEL expressions in the context of the resource group. This is done
+	// and evaluate the CEL expressions in the context of the resource graph definition. This is done
 	// by dry-running the CEL expressions against the emulated resources.
 	err = validateResourceCELExpressions(resources, instance)
 	if err != nil {
@@ -212,11 +212,11 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	}
 
 	// Now that we have the instance resource, we can move into the next stage of
-	// building the resource group. Understanding the relationships between the
-	// resources in the resource group a.k.a the dependency graph.
+	// building the resource graph definition. Understanding the relationships between the
+	// resources in the resource graph definition a.k.a the dependency graph.
 	//
 	// The dependency graph is an directed acyclic graph that represents the
-	// relationships between the resources in the resource group. The graph is
+	// relationships between the resources in the resource graph definition. The graph is
 	// used to determine the order in which the resources should be created in the
 	// cluster.
 	//
@@ -233,13 +233,13 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 		return nil, fmt.Errorf("failed to get topological order: %w", err)
 	}
 
-	resourceGroup := &Graph{
+	resourceGraphDefinition := &Graph{
 		DAG:              dag,
 		Instance:         instance,
 		Resources:        resources,
 		TopologicalOrder: topologicalOrder,
 	}
-	return resourceGroup, nil
+	return resourceGraphDefinition, nil
 }
 
 // buildRGResource builds a resource from the given resource definition.
@@ -338,8 +338,8 @@ func (b *Builder) buildRGResource(rgResource *v1alpha1.Resource, namespacedResou
 }
 
 // buildDependencyGraph builds the dependency graph between the resources in the
-// resource group. The dependency graph is an directed acyclic graph that represents
-// the relationships between the resources in the resource group. The graph is used
+// resource graph definition. The dependency graph is an directed acyclic graph that represents
+// the relationships between the resources in the resource graph definition. The graph is used
 // to determine the order in which the resources should be created in the cluster.
 //
 // This function returns the DAG, and a map of runtime variables per resource. later
@@ -363,7 +363,7 @@ func (b *Builder) buildDependencyGraph(
 	}
 
 	directedAcyclicGraph := dag.NewDirectedAcyclicGraph()
-	// Set the vertices of the graph to be the resources defined in the resource group.
+	// Set the vertices of the graph to be the resources defined in the resource graph definition.
 	for resourceName := range resources {
 		if err := directedAcyclicGraph.AddVertex(resourceName); err != nil {
 			return nil, fmt.Errorf("failed to add vertex to graph: %w", err)
@@ -374,7 +374,7 @@ func (b *Builder) buildDependencyGraph(
 		for _, resourceVariable := range resource.variables {
 			for _, expression := range resourceVariable.Expressions {
 				// We need to inspect the expression to understand how it relates to the
-				// resources defined in the resource group.
+				// resources defined in the resource graph definition.
 				err := validateCELExpressionContext(env, expression, resourceNames)
 				if err != nil {
 					return nil, fmt.Errorf("failed to validate expression context: %w", err)
@@ -411,7 +411,7 @@ func (b *Builder) buildDependencyGraph(
 
 // buildInstanceResource builds the instance resource. The instance resource is
 // the representation of the CR that users will create in their cluster to request
-// the creation of the resources defined in the resource group.
+// the creation of the resources defined in the resource graph definition.
 //
 // Since instances are defined using the "SimpleSchema" format, we use a different
 // approach to build the instance resource. We need to:
@@ -421,7 +421,7 @@ func (b *Builder) buildInstanceResource(
 	resources map[string]*Resource,
 ) (*Resource, error) {
 	// The instance resource is the resource users will create in their cluster,
-	// to request the creation of the resources defined in the resource group.
+	// to request the creation of the resources defined in the resource graph definition.
 	//
 	// The instance resource is a Kubernetes resource, differently from typical
 	// CRDs, it doesn't have an OpenAPI schema. Instead, it has a schema defined
@@ -566,7 +566,7 @@ func buildStatusSchema(
 		evals := []ref.Val{}
 		for _, expr := range found.Expressions {
 			// we need to inspect the expression to understand how it relates to the
-			// resources defined in the resource group.
+			// resources defined in the resource graph definition.
 			err := validateCELExpressionContext(env, expr, resourceNames)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to validate expression context: %w", err)
@@ -591,17 +591,17 @@ func buildStatusSchema(
 }
 
 // validateCELExpressionContext validates the given CEL expression in the context
-// of the resources defined in the resource group.
+// of the resources defined in the resource graph definition.
 func validateCELExpressionContext(env *cel.Env, expression string, resources []string) error {
 	inspector := ast.NewInspectorWithEnv(env, resources, nil)
 
 	// The CEL expression is valid if it refers to the resources defined in the
-	// resource group.
+	// resource graph definition.
 	inspectionResult, err := inspector.Inspect(expression)
 	if err != nil {
 		return fmt.Errorf("failed to inspect expression: %w", err)
 	}
-	// make sure that the expression refers to the resources defined in the resource group.
+	// make sure that the expression refers to the resources defined in the resource graph definition.
 	for _, resource := range inspectionResult.ResourceDependencies {
 		if !slices.Contains(resources, resource.ID) {
 			return fmt.Errorf("expression refers to unknown resource: %s", resource.ID)
@@ -646,7 +646,7 @@ func extractDependencies(env *cel.Env, expression string, resourceNames []string
 	inspector := ast.NewInspectorWithEnv(env, resourceNames, nil)
 
 	// The CEL expression is valid if it refers to the resources defined in the
-	// resource group.
+	// resource graph definition.
 	inspectionResult, err := inspector.Inspect(expression)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to inspect expression: %w", err)
@@ -670,7 +670,7 @@ func extractDependencies(env *cel.Env, expression string, resourceNames []string
 }
 
 // validateResourceCELExpressions tries to validate the CEL expressions in the
-// resources against the resources defined in the resource group.
+// resources against the resources defined in the resource graph definition.
 //
 // In this process, we pin a resource and evaluate the CEL expressions in the
 // context of emulated resources. Meaning that given 3 resources A, B, and C,

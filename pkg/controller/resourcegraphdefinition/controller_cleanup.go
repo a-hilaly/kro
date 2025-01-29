@@ -32,7 +32,7 @@ import (
 // 2. Deletes the associated CRD (if CRD deletion is enabled)
 func (r *ResourceGraphDefinitionReconciler) cleanupResourceGraphDefinition(ctx context.Context, rgd *v1alpha1.ResourceGraphDefinition) error {
 	log, _ := logr.FromContext(ctx)
-	log.V(1).Info("cleaning up resource group", "name", rgd.Name)
+	log.V(1).Info("cleaning up resource graph definition", "name", rgd.Name)
 
 	// shutdown microcontroller
 	gvr := metadata.GetResourceGraphDefinitionInstanceGVR(rgd.Spec.Schema.Group, rgd.Spec.Schema.APIVersion, rgd.Spec.Schema.Kind)

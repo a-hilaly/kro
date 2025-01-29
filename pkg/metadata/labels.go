@@ -37,10 +37,10 @@ const (
 	InstanceLabel          = LabelKroPrefix + "instance-name"
 	InstanceNamespaceLabel = LabelKroPrefix + "instance-namespace"
 
-	ResourceGraphDefinitionIDLabel        = LabelKroPrefix + "resource-group-id"
-	ResourceGraphDefinitionNameLabel      = LabelKroPrefix + "resource-group-name"
-	ResourceGraphDefinitionNamespaceLabel = LabelKroPrefix + "resource-group-namespace"
-	ResourceGraphDefinitionVersionLabel   = LabelKroPrefix + "resource-group-version"
+	ResourceGraphDefinitionIDLabel        = LabelKroPrefix + "resource-graph-definition-id"
+	ResourceGraphDefinitionNameLabel      = LabelKroPrefix + "resource-graph-definition-name"
+	ResourceGraphDefinitionNamespaceLabel = LabelKroPrefix + "resource-graph-definition-namespace"
+	ResourceGraphDefinitionVersionLabel   = LabelKroPrefix + "resource-graph-definition-version"
 )
 
 // IsKroOwned returns true if the resource is owned by Kro.

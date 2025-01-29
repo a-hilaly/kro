@@ -64,7 +64,7 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var allowCRDDeletion bool
-	var resourceGroupConcurrentReconciles int
+	var resourceGraphDefinitionConcurrentReconciles int
 	var dynamicControllerConcurrentReconciles int
 	// reconciler parameters
 	var resyncPeriod int
@@ -81,8 +81,14 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&allowCRDDeletion, "allow-crd-deletion", false, "allow kro to delete CRDs")
-	flag.IntVar(&resourceGroupConcurrentReconciles, "resource-group-concurrent-reconciles", 1, "The number of resource group reconciles to run in parallel")
-	flag.IntVar(&dynamicControllerConcurrentReconciles, "dynamic-controller-concurrent-reconciles", 1, "The number of dynamic controller reconciles to run in parallel")
+	flag.IntVar(&resourceGraphDefinitionConcurrentReconciles,
+		"resource-graph-definition-concurrent-reconciles", 1,
+		"The number of resource graph definition reconciles to run in parallel",
+	)
+	flag.IntVar(&dynamicControllerConcurrentReconciles,
+		"dynamic-controller-concurrent-reconciles", 1,
+		"The number of dynamic controller reconciles to run in parallel",
+	)
 	// reconciler parametes
 	flag.IntVar(&resyncPeriod, "dynamic-controller-default-resync-period", 10,
 		"interval at which the controller will re list resources even with no changes, in hours")
@@ -151,11 +157,11 @@ func main() {
 		QueueMaxRetries: queueMaxRetries,
 	}, set.Dynamic())
 
-	resourceGroupGraphBuilder, err := graph.NewBuilder(
+	resourceGraphDefinitionGraphBuilder, err := graph.NewBuilder(
 		restConfig,
 	)
 	if err != nil {
-		setupLog.Error(err, "unable to create resource group graph builder")
+		setupLog.Error(err, "unable to create resource graph definition graph builder")
 		os.Exit(1)
 	}
 
@@ -165,7 +171,7 @@ func main() {
 		set,
 		allowCRDDeletion,
 		dc,
-		resourceGroupGraphBuilder,
+		resourceGraphDefinitionGraphBuilder,
 	)
 	err = ctrl.NewControllerManagedBy(
 		mgr,
@@ -175,7 +181,7 @@ func main() {
 		predicate.GenerationChangedPredicate{},
 	).WithOptions(
 		ctrlrtcontroller.Options{
-			MaxConcurrentReconciles: resourceGroupConcurrentReconciles,
+			MaxConcurrentReconciles: resourceGraphDefinitionConcurrentReconciles,
 		},
 	).Complete(reconcile.AsReconciler[*xv1alpha1.ResourceGraphDefinition](mgr.GetClient(), reconciler))
 	if err != nil {

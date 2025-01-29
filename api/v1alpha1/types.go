@@ -96,13 +96,13 @@ type Resource struct {
 	IncludeWhen []string `json:"includeWhen,omitempty"`
 }
 
-// ResourceGraphDefinitionState defines the state of the resource group.
+// ResourceGraphDefinitionState defines the state of the resource graph definition.
 type ResourceGraphDefinitionState string
 
 const (
-	// ResourceGraphDefinitionStateActive represents the active state of the resource group.
+	// ResourceGraphDefinitionStateActive represents the active state of the resource definition.
 	ResourceGraphDefinitionStateActive ResourceGraphDefinitionState = "Active"
-	// ResourceGraphDefinitionStateInactive represents the inactive state of the resource group
+	// ResourceGraphDefinitionStateInactive represents the inactive state of the resource graph definition
 	ResourceGraphDefinitionStateInactive ResourceGraphDefinitionState = "Inactive"
 )
 
@@ -123,7 +123,7 @@ type ResourceGraphDefinitionStatus struct {
 type ResourceInformation struct {
 	// ID represents the id of the resources we're providing information for
 	ID string `json:"id,omitempty"`
-	// Dependencies represents the resource dependencies of a resource group
+	// Dependencies represents the resource dependencies of a resource graph definition
 	Dependencies []Dependency `json:"dependencies,omitempty"`
 }
 

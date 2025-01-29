@@ -84,7 +84,7 @@ func isKROReservedWord(word string) bool {
 }
 
 // validateResourceGraphDefinitionNamingConventions validates the naming conventions of
-// the given resource group.
+// the given resource graph definition.
 func validateResourceGraphDefinitionNamingConventions(rgd *v1alpha1.ResourceGraphDefinition) error {
 	if !isValidKindName(rgd.Spec.Schema.Kind) {
 		return fmt.Errorf("%s: kind '%s' is not a valid KRO kind name: must be UpperCamelCase", ErrNamingConvention, rgd.Spec.Schema.Kind)

@@ -41,7 +41,7 @@ func NewStatusProcessor() *StatusProcessor {
 	}
 }
 
-// setDefaultConditions sets the default conditions for an active resource group
+// setDefaultConditions sets the default conditions for an active resource graph definition
 func (sp *StatusProcessor) setDefaultConditions() {
 	sp.conditions = []v1alpha1.Condition{
 		newReconcilerReadyCondition(metav1.ConditionTrue, ""),
@@ -90,7 +90,7 @@ func (r *ResourceGraphDefinitionReconciler) setResourceGraphDefinitionStatus(
 	reconcileErr error,
 ) error {
 	log, _ := logr.FromContext(ctx)
-	log.V(1).Info("calculating resource group status and conditions")
+	log.V(1).Info("calculating resource graph definition status and conditions")
 
 	processor := NewStatusProcessor()
 
@@ -120,7 +120,7 @@ func (r *ResourceGraphDefinitionReconciler) setResourceGraphDefinitionStatus(
 		// Get fresh copy to avoid conflicts
 		current := &v1alpha1.ResourceGraphDefinition{}
 		if err := r.Get(ctx, client.ObjectKeyFromObject(resourcegraphdefinition), current); err != nil {
-			return fmt.Errorf("failed to get current resource group: %w", err)
+			return fmt.Errorf("failed to get current resource graph definition: %w", err)
 		}
 
 		// Update status
@@ -130,7 +130,7 @@ func (r *ResourceGraphDefinitionReconciler) setResourceGraphDefinitionStatus(
 		dc.Status.TopologicalOrder = topologicalOrder
 		dc.Status.Resources = resources
 
-		log.V(1).Info("updating resource group status",
+		log.V(1).Info("updating resource graph definition status",
 			"state", dc.Status.State,
 			"conditions", len(dc.Status.Conditions),
 		)

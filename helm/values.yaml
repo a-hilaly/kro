@@ -82,8 +82,8 @@ config:
   metricsBindAddress: :8078
   # The address the probe endpoint binds to
   healthProbeBindAddress: :8079
-  # The number of resource group reconciles to run in parallel
-  resourceGroupConcurrentReconciles: 1
+  # The number of resource graph definition reconciles to run in parallel
+  resourceGraphDefinitionConcurrentReconciles: 1
   # The number of dynamic controller reconciles to run in parallel
   dynamicControllerConcurrentReconciles: 1
   # The log level verbosity. 0 is the least verbose, 5 is the most verbose

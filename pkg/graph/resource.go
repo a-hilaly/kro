@@ -25,7 +25,7 @@ import (
 	"github.com/kro-run/kro/pkg/graph/variable"
 )
 
-// Resource represents a resource in a resource group, it hholds
+// Resource represents a resource in a resource graph definition, it hholds
 // information about the resource, its schema, and its variables.
 //
 // This object can only be created by the GraphBuilder and it should
@@ -33,8 +33,8 @@ import (
 // modified after creation.
 type Resource struct {
 	// id is the unique identifier of the resource. It's the name of the
-	// resource in the resource group.
-	// An id is unique within a resource group, and adheres to the naming
+	// resource in the resource graph definition.
+	// An id is unique within a resource graph definition, and adheres to the naming
 	// conventions.
 	id string
 	// GroupVersionKind is the GVK of the resource.
@@ -43,7 +43,7 @@ type Resource struct {
 	schema *spec.Schema
 	// SchemaExt is similar to Schema but can be used to create a CRD.
 	crd *extv1.CustomResourceDefinition
-	// Original represents the original object we found in the resource group.
+	// Original represents the original object we found in the resource graph definition.
 	// This will contain all fields (and CEL expressions) as they were in the
 	// original object.
 	originalObject *unstructured.Unstructured
@@ -64,7 +64,7 @@ type Resource struct {
 	// before the resource is considered ready.
 	readyWhenExpressions []string
 	// includeWhenExpressions is a list of the expresisons that need to be evaluated
-	// to decide whether to create a resource group or not
+	// to decide whether to create a resource graph definition or not
 	includeWhenExpressions []string
 	// namespaced indicates if the resource is namespaced or cluster-scoped.
 	// This is useful when initiating the dynamic client to interact with the
@@ -116,7 +116,7 @@ func (r *Resource) GetCRD() *extv1.CustomResourceDefinition {
 	return r.crd.DeepCopy()
 }
 
-// Unstructured returns the original object we found in the resource group.
+// Unstructured returns the original object we found in the resource graph definition.
 func (r *Resource) Unstructured() *unstructured.Unstructured {
 	return r.originalObject
 }

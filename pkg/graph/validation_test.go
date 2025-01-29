@@ -22,12 +22,12 @@ import (
 func TestValidateRGResourceNames(t *testing.T) {
 	tests := []struct {
 		name        string
-		rg          *v1alpha1.ResourceGraphDefinition
+		rgd         *v1alpha1.ResourceGraphDefinition
 		expectError bool
 	}{
 		{
-			name: "Valid resource group resource ids",
-			rg: &v1alpha1.ResourceGraphDefinition{
+			name: "Valid resource graph definition resource ids",
+			rgd: &v1alpha1.ResourceGraphDefinition{
 				Spec: v1alpha1.ResourceGraphDefinitionSpec{
 					Resources: []*v1alpha1.Resource{
 						{ID: "validID1"},
@@ -39,7 +39,7 @@ func TestValidateRGResourceNames(t *testing.T) {
 		},
 		{
 			name: "Duplicate resource ids",
-			rg: &v1alpha1.ResourceGraphDefinition{
+			rgd: &v1alpha1.ResourceGraphDefinition{
 				Spec: v1alpha1.ResourceGraphDefinitionSpec{
 					Resources: []*v1alpha1.Resource{
 						{ID: "duplicateID"},
@@ -51,7 +51,7 @@ func TestValidateRGResourceNames(t *testing.T) {
 		},
 		{
 			name: "Invalid resource ID",
-			rg: &v1alpha1.ResourceGraphDefinition{
+			rgd: &v1alpha1.ResourceGraphDefinition{
 				Spec: v1alpha1.ResourceGraphDefinitionSpec{
 					Resources: []*v1alpha1.Resource{
 						{ID: "Invalid_ID"},
@@ -62,7 +62,7 @@ func TestValidateRGResourceNames(t *testing.T) {
 		},
 		{
 			name: "Reserved word as resource id",
-			rg: &v1alpha1.ResourceGraphDefinition{
+			rgd: &v1alpha1.ResourceGraphDefinition{
 				Spec: v1alpha1.ResourceGraphDefinitionSpec{
 					Resources: []*v1alpha1.Resource{
 						{ID: "spec"},
@@ -75,7 +75,7 @@ func TestValidateRGResourceNames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateResourceIDs(tt.rg)
+			err := validateResourceIDs(tt.rgd)
 			if (err != nil) != tt.expectError {
 				t.Errorf("validateRGResourceIDs() error = %v, expectError %v", err, tt.expectError)
 			}
@@ -91,7 +91,7 @@ func TestIsKROReservedWord(t *testing.T) {
 		{"resourcegraphdefinition", true},
 		{"instance", true},
 		{"notReserved", false},
-		{"RESOURCEGROUP", false}, // Case-sensitive check
+		{"RESOURCEGRAPHDEFINITION", false}, // Case-sensitive check
 	}
 
 	for _, tt := range tests {

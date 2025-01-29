@@ -36,17 +36,17 @@ import (
 func (r *ResourceGraphDefinitionReconciler) reconcileResourceGraphDefinition(ctx context.Context, rgd *v1alpha1.ResourceGraphDefinition) ([]string, []v1alpha1.ResourceInformation, error) {
 	log, _ := logr.FromContext(ctx)
 
-	// Process resource group graph first to validate structure
-	log.V(1).Info("reconciling resource group graph")
-	processedRG, resourcesInfo, err := r.reconcileResourceGraphDefinitionGraph(ctx, rgd)
+	// Process resource graph definition graph first to validate structure
+	log.V(1).Info("reconciling resource graph definition graph")
+	processedRGD, resourcesInfo, err := r.reconcileResourceGraphDefinitionGraph(ctx, rgd)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Ensure CRD exists and is up to date
-	log.V(1).Info("reconciling resource group CRD")
-	if err := r.reconcileResourceGraphDefinitionCRD(ctx, processedRG.Instance.GetCRD()); err != nil {
-		return processedRG.TopologicalOrder, resourcesInfo, err
+	log.V(1).Info("reconciling resource graph definition CRD")
+	if err := r.reconcileResourceGraphDefinitionCRD(ctx, processedRGD.Instance.GetCRD()); err != nil {
+		return processedRGD.TopologicalOrder, resourcesInfo, err
 	}
 
 	// Setup metadata labeling
@@ -56,18 +56,18 @@ func (r *ResourceGraphDefinitionReconciler) reconcileResourceGraphDefinition(ctx
 	}
 
 	// Setup and start microcontroller
-	gvr := processedRG.Instance.GetGroupVersionResource()
-	controller := r.setupMicroController(gvr, processedRG, rgd.Spec.DefaultServiceAccounts, graphExecLabeler)
+	gvr := processedRGD.Instance.GetGroupVersionResource()
+	controller := r.setupMicroController(gvr, processedRGD, rgd.Spec.DefaultServiceAccounts, graphExecLabeler)
 
-	log.V(1).Info("reconciling resource group micro controller")
+	log.V(1).Info("reconciling resource graph definition micro controller")
 	if err := r.reconcileResourceGraphDefinitionMicroController(ctx, &gvr, controller.Reconcile); err != nil {
-		return processedRG.TopologicalOrder, resourcesInfo, err
+		return processedRGD.TopologicalOrder, resourcesInfo, err
 	}
 
-	return processedRG.TopologicalOrder, resourcesInfo, nil
+	return processedRGD.TopologicalOrder, resourcesInfo, nil
 }
 
-// setupLabeler creates and merges the required labelers for the resource group
+// setupLabeler creates and merges the required labelers for the resource graph definition
 func (r *ResourceGraphDefinitionReconciler) setupLabeler(rgd *v1alpha1.ResourceGraphDefinition) (metadata.Labeler, error) {
 	rgLabeler := metadata.NewResourceGraphDefinitionLabeler(rgd)
 	return r.metadataLabeler.Merge(rgLabeler)
@@ -76,7 +76,7 @@ func (r *ResourceGraphDefinitionReconciler) setupLabeler(rgd *v1alpha1.ResourceG
 // setupMicroController creates a new controller instance with the required configuration
 func (r *ResourceGraphDefinitionReconciler) setupMicroController(
 	gvr schema.GroupVersionResource,
-	processedRG *graph.Graph,
+	processedRGD *graph.Graph,
 	defaultSVCs map[string]string,
 	labeler metadata.Labeler,
 ) *instancectrl.Controller {
@@ -91,30 +91,30 @@ func (r *ResourceGraphDefinitionReconciler) setupMicroController(
 			DeletionPolicy:            "Delete",
 		},
 		gvr,
-		processedRG,
+		processedRGD,
 		r.clientSet,
 		defaultSVCs,
 		labeler,
 	)
 }
 
-// reconcileResourceGraphDefinitionGraph processes the resource group to build a dependency graph
+// reconcileResourceGraphDefinitionGraph processes the resource graph definition to build a dependency graph
 // and extract resource information
 func (r *ResourceGraphDefinitionReconciler) reconcileResourceGraphDefinitionGraph(_ context.Context, rgd *v1alpha1.ResourceGraphDefinition) (*graph.Graph, []v1alpha1.ResourceInformation, error) {
-	processedRG, err := r.rgBuilder.NewResourceGraphDefinition(rgd)
+	processedRGD, err := r.rgBuilder.NewResourceGraphDefinition(rgd)
 	if err != nil {
 		return nil, nil, newGraphError(err)
 	}
 
-	resourcesInfo := make([]v1alpha1.ResourceInformation, 0, len(processedRG.Resources))
-	for name, resource := range processedRG.Resources {
+	resourcesInfo := make([]v1alpha1.ResourceInformation, 0, len(processedRGD.Resources))
+	for name, resource := range processedRGD.Resources {
 		deps := resource.GetDependencies()
 		if len(deps) > 0 {
 			resourcesInfo = append(resourcesInfo, buildResourceInfo(name, deps))
 		}
 	}
 
-	return processedRG, resourcesInfo, nil
+	return processedRGD, resourcesInfo, nil
 }
 
 // buildResourceInfo creates a ResourceInformation struct from name and dependencies
