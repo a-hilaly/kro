@@ -63,15 +63,14 @@ func HasInstanceFinalizer(obj metav1.Object, uid types.UID) bool {
 }
 
 // SetInstanceFinalizerUnstructured adds an instance-specific finalizer to an unstructured object.
-func SetInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.UID) error {
-	finalizerName := getInstanceFinalizerName(uid)
+func SetInstanceFinalizerUnstructured(obj *unstructured.Unstructured) error {
 	finalizers, found, err := unstructured.NestedStringSlice(obj.Object, "metadata", "finalizers")
 	if err != nil {
 		return fmt.Errorf("error getting finalizers: %w", err)
 	}
 
-	if !found || !containsString(finalizers, finalizerName) {
-		finalizers = append(finalizers, finalizerName)
+	if !found || !containsString(finalizers, kroFinalizer) {
+		finalizers = append(finalizers, kroFinalizer)
 		if err := unstructured.SetNestedStringSlice(obj.Object, finalizers, "metadata", "finalizers"); err != nil {
 			return fmt.Errorf("error setting finalizers: %w", err)
 		}
@@ -80,15 +79,14 @@ func SetInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.
 }
 
 // RemoveInstanceFinalizerUnstructured removes an instance-specific finalizer from an unstructured object.
-func RemoveInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.UID) error {
-	finalizerName := getInstanceFinalizerName(uid)
+func RemoveInstanceFinalizerUnstructured(obj *unstructured.Unstructured) error {
 	finalizers, found, err := unstructured.NestedStringSlice(obj.Object, "metadata", "finalizers")
 	if err != nil {
 		return fmt.Errorf("error getting finalizers: %w", err)
 	}
 
 	if found {
-		finalizers = removeString(finalizers, finalizerName)
+		finalizers = removeString(finalizers, kroFinalizer)
 		if err := unstructured.SetNestedStringSlice(obj.Object, finalizers, "metadata", "finalizers"); err != nil {
 			return fmt.Errorf("error setting finalizers: %w", err)
 		}
@@ -97,8 +95,7 @@ func RemoveInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid typ
 }
 
 // HasInstanceFinalizerUnstructured checks if an unstructured object has an instance-specific finalizer.
-func HasInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.UID) (bool, error) {
-	finalizerName := getInstanceFinalizerName(uid)
+func HasInstanceFinalizerUnstructured(obj *unstructured.Unstructured) (bool, error) {
 	finalizers, found, err := unstructured.NestedStringSlice(obj.Object, "metadata", "finalizers")
 	if err != nil {
 		return false, fmt.Errorf("error getting finalizers: %w", err)
@@ -108,7 +105,7 @@ func HasInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.
 		return false, nil
 	}
 
-	return containsString(finalizers, finalizerName), nil
+	return containsString(finalizers, kroFinalizer), nil
 }
 
 // Helper functions

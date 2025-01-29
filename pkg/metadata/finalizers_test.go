@@ -120,8 +120,8 @@ func TestInstanceFinalizerUnstructured(t *testing.T) {
 	cases := []struct {
 		name          string
 		initialObject *unstructured.Unstructured
-		operation     func(*unstructured.Unstructured, types.UID) error
-		check         func(*unstructured.Unstructured, types.UID) (bool, error)
+		operation     func(*unstructured.Unstructured) error
+		check         func(*unstructured.Unstructured) (bool, error)
 		expected      bool
 		expectError   bool
 	}{
@@ -179,12 +179,12 @@ func TestInstanceFinalizerUnstructured(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.operation(tc.initialObject, uid)
+			err := tc.operation(tc.initialObject)
 			if tc.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				hasF, err := tc.check(tc.initialObject, uid)
+				hasF, err := tc.check(tc.initialObject)
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expected, hasF)
 			}
