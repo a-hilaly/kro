@@ -1,5 +1,5 @@
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: cloudsql.kro.run
 spec:
@@ -37,7 +37,7 @@ spec:
         name: iam-enablement
       spec:
         resourceID: iam.googleapis.com
-  - id: servceusageEnable
+  - id: serviceUsageEnable
     template:
       apiVersion: serviceusage.cnrm.cloud.google.com/v1beta1
       kind: Service
@@ -48,7 +48,7 @@ spec:
         name: serviceusage-enablement
       spec:
         resourceID: serviceusage.googleapis.com
-  - id: sqladminEnable
+  - id: sqlAdminEnable
     template:
       apiVersion: serviceusage.cnrm.cloud.google.com/v1beta1
       kind: Service
@@ -64,6 +64,8 @@ spec:
       apiVersion: serviceusage.cnrm.cloud.google.com/v1beta1
       kind: ServiceIdentity
       metadata:
+        labels:
+          enabled-service: ${serviceUsageEnable.metadata.name}
         name: sqladmin.googleapis.com
       spec:
         projectRef:
@@ -73,6 +75,8 @@ spec:
       apiVersion: kms.cnrm.cloud.google.com/v1beta1
       kind: KMSKeyRing
       metadata:
+        labels:
+          enabled-service: ${cloudkmsEnable.metadata.name}
         name: ${schema.spec.name}-primary
       spec:
         location: ${schema.spec.primaryRegion}
@@ -81,6 +85,8 @@ spec:
       apiVersion: kms.cnrm.cloud.google.com/v1beta1
       kind: KMSKeyRing
       metadata:
+        labels:
+          enabled-service: ${cloudkmsEnable.metadata.name}
         name: ${schema.spec.name}-replica
       spec:
         location: ${schema.spec.replicaRegion}
@@ -90,11 +96,12 @@ spec:
       kind: KMSCryptoKey
       metadata:
         labels:
+          enabled-service: ${cloudkmsEnable.metadata.name}
           failure-zone: ${schema.spec.primaryRegion}
         name: ${schema.spec.name}-primary
       spec:
         keyRingRef:
-          name: ${schema.spec.name}-primary
+          name: ${keyringPrimary.metadata.name}
           #namespace: {{ cloudsqls.metadata.namespace }}
         purpose: ENCRYPT_DECRYPT
         versionTemplate:
@@ -107,11 +114,12 @@ spec:
       kind: KMSCryptoKey
       metadata:
         labels:
+          enabled-service: ${cloudkmsEnable.metadata.name}
           failure-zone: ${schema.spec.replicaRegion}
         name: ${schema.spec.name}-replica
       spec:
         keyRingRef:
-          name: ${schema.spec.name}-replica
+          name: ${keyringReplica.metadata.name}
           #namespace: {{ cloudsqls.metadata.namespace }}
         purpose: ENCRYPT_DECRYPT
         versionTemplate:
@@ -123,13 +131,15 @@ spec:
       apiVersion: iam.cnrm.cloud.google.com/v1beta1
       kind: IAMPolicyMember
       metadata:
+        labels:
+          enabled-service: ${iamEnable.metadata.name}
         name: sql-kms-${schema.spec.primaryRegion}-policybinding
       spec:
         member: serviceAccount:${serviceidentity.status.email}
         role: roles/cloudkms.cryptoKeyEncrypterDecrypter
         resourceRef:
           kind: KMSCryptoKey
-          name: ${schema.spec.name}-primary
+          name: ${kmskeyPrimary.metadata.name}-primary
           #namespace: {{ cloudsqls.metadata.namespace }}
   - id: iampolicymemberReplica
     template:
@@ -137,12 +147,14 @@ spec:
       kind: IAMPolicyMember
       metadata:
         name: sql-kms-${schema.spec.replicaRegion}-policybinding
+        labels:
+          enabled-service: ${iamEnable.metadata.name}
       spec:
         member: serviceAccount:${serviceidentity.status.email}
         role: roles/cloudkms.cryptoKeyEncrypterDecrypter
         resourceRef:
           kind: KMSCryptoKey
-          name: ${schema.spec.name}-replica
+          name: ${kmskeyReplica.metadata.name}-replica
           #namespace: {{ cloudsqls.metadata.namespace }}
   - id: sqlPrimary
     template:
@@ -153,11 +165,12 @@ spec:
           cnrm.cloud.google.com/deletion-policy: abandon
         labels:
           failure-zone: ${schema.spec.primaryRegion}
+          enabled-service: ${sqlAdminEnable.metadata.name}
         name: ${schema.spec.name}-primary
       spec:
         databaseVersion: POSTGRES_13
         encryptionKMSCryptoKeyRef:
-          external: projects/${schema.spec.project}/locations/${schema.spec.primaryRegion}/keyRings/${schema.spec.name}-primary/cryptoKeys/${schema.spec.name}-primary
+          external: projects/${schema.spec.project}/locations/${schema.spec.primaryRegion}/keyRings/${keyringPrimary.metadata.name}/cryptoKeys/${kmskeyPrimary.metadata.name}
         region: ${schema.spec.primaryRegion}
         settings:
           availabilityType: REGIONAL
@@ -181,11 +194,12 @@ spec:
           cnrm.cloud.google.com/deletion-policy: abandon
         labels:
           failure-zone: ${schema.spec.replicaRegion}
+          enabled-service: ${sqlAdminEnable.metadata.name}
         name: ${schema.spec.name}-replica
       spec:
         databaseVersion: POSTGRES_13
         encryptionKMSCryptoKeyRef:
-          external: projects/${schema.spec.project}/locations/${schema.spec.replicaRegion}/keyRings/${schema.spec.name}-replica/cryptoKeys/${schema.spec.name}-replica
+          external: projects/${schema.spec.project}/locations/${schema.spec.replicaRegion}/keyRings/${keyringReplica.metadata.name}/cryptoKeys/${kmskeyReplica.metadata.name}
         masterInstanceRef:
           name: ${schema.spec.name}-primary
           #namespace: {{ cloudsqls.metadata.namespace }}

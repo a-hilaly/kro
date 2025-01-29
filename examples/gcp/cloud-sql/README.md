@@ -7,13 +7,13 @@ This example creates a ResourceGraphDefinition called `CloudSQL` to deploy Cloud
 Apply the RGD to your cluster:
 
 ```
-kubectl apply -f rg.yaml
+kubectl apply -f rgd.yaml
 ```
 
-Validate the RG:
+Validate the RGD:
 
 ```
-> kubectl get rg cloudsql.kro.run
+> kubectl get rgd cloudsql.kro.run
 NAME               APIVERSION   KIND       STATE    AGE
 cloudsql.kro.run   v1alpha1     CloudSQL   Active   44m
 ```
