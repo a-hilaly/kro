@@ -70,47 +70,47 @@ var _ = Describe("NetworkingStack", func() {
 		Expect(env.Client.Create(ctx, ns)).To(Succeed())
 
 		// Create ResourceGraphDefinition
-		rg, genInstance := networkingStack("test-networking-stack", namespace)
-		Expect(env.Client.Create(ctx, rg)).To(Succeed())
+		rgd, genInstance := networkingStack("test-networking-stack", namespace)
+		Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 		// Verify ResourceGraphDefinition is created and becomes ready
-		createdRG := &krov1alpha1.ResourceGraphDefinition{}
+		createdRGD := &krov1alpha1.ResourceGraphDefinition{}
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rg.Name,
+				Name:      rgd.Name,
 				Namespace: namespace,
-			}, createdRG)
+			}, createdRGD)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Verify the ResourceGraphDefinition fields
-			g.Expect(createdRG.Spec.Schema.Kind).To(Equal("NetworkingStack"))
-			g.Expect(createdRG.Spec.Schema.APIVersion).To(Equal("v1alpha1"))
-			g.Expect(createdRG.Spec.Resources).To(HaveLen(5)) // vpc, 3 subnets, security group
+			g.Expect(createdRGD.Spec.Schema.Kind).To(Equal("NetworkingStack"))
+			g.Expect(createdRGD.Spec.Schema.APIVersion).To(Equal("v1alpha1"))
+			g.Expect(createdRGD.Spec.Resources).To(HaveLen(5)) // vpc, 3 subnets, security group
 
 			// Verify the ResourceGraphDefinition status
-			g.Expect(createdRG.Status.TopologicalOrder).To(HaveLen(5))
-			g.Expect(createdRG.Status.TopologicalOrder).To(Equal([]string{
+			g.Expect(createdRGD.Status.TopologicalOrder).To(HaveLen(5))
+			g.Expect(createdRGD.Status.TopologicalOrder).To(Equal([]string{
 				"vpc",
 				"securityGroup",
 				"subnetAZA",
 				"subnetAZB",
 				"subnetAZC",
 			}))
-			g.Expect(createdRG.Status.Conditions).To(HaveLen(3))
-			g.Expect(createdRG.Status.Conditions[0].Type).To(Equal(
+			g.Expect(createdRGD.Status.Conditions).To(HaveLen(3))
+			g.Expect(createdRGD.Status.Conditions[0].Type).To(Equal(
 				krov1alpha1.ResourceGraphDefinitionConditionTypeReconcilerReady,
 			))
-			g.Expect(createdRG.Status.Conditions[0].Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(createdRG.Status.Conditions[1].Type).To(Equal(
+			g.Expect(createdRGD.Status.Conditions[0].Status).To(Equal(metav1.ConditionTrue))
+			g.Expect(createdRGD.Status.Conditions[1].Type).To(Equal(
 				krov1alpha1.ResourceGraphDefinitionConditionTypeGraphVerified,
 			))
-			g.Expect(createdRG.Status.Conditions[1].Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(createdRG.Status.Conditions[2].Type).To(
+			g.Expect(createdRGD.Status.Conditions[1].Status).To(Equal(metav1.ConditionTrue))
+			g.Expect(createdRGD.Status.Conditions[2].Type).To(
 				Equal(krov1alpha1.ResourceGraphDefinitionConditionTypeCustomResourceDefinitionSynced),
 			)
-			g.Expect(createdRG.Status.Conditions[2].Status).To(Equal(metav1.ConditionTrue))
+			g.Expect(createdRGD.Status.Conditions[2].Status).To(Equal(metav1.ConditionTrue))
 
-			g.Expect(createdRG.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
+			g.Expect(createdRGD.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
 		}, 10*time.Second, time.Second).Should(Succeed())
 
 		// Create instance
@@ -263,12 +263,12 @@ var _ = Describe("NetworkingStack", func() {
 		}, 20*time.Second, time.Second).Should(BeTrue())
 
 		// Delete ResourceGraphDefinition
-		Expect(env.Client.Delete(ctx, rg)).To(Succeed())
+		Expect(env.Client.Delete(ctx, rgd)).To(Succeed())
 
 		// Verify ResourceGraphDefinition is deleted
 		Eventually(func() bool {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rg.Name,
+				Name:      rgd.Name,
 				Namespace: namespace,
 			}, &krov1alpha1.ResourceGraphDefinition{})
 			return errors.IsNotFound(err)

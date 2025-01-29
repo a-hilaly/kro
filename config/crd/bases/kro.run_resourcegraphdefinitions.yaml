@@ -202,7 +202,7 @@ spec:
                   properties:
                     dependencies:
                       description: Dependencies represents the resource dependencies
-                        of a resource group
+                        of a resource graph definition
                       items:
                         description: |-
                           Dependency defines the dependency a resource has observed

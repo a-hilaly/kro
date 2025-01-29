@@ -21,19 +21,19 @@ import (
 )
 
 // Graph represents a processed resourcegraphdefinition. It contains the DAG representation
-// and everything needed to "manage" the resources defined in the resource group.
+// and everything needed to "manage" the resources defined in the resource graph definition.
 type Graph struct {
-	// DAG is the directed acyclic graph representation of the resource group.
+	// DAG is the directed acyclic graph representation of the resource graph definition.
 	DAG *dag.DirectedAcyclicGraph
-	// Instance is the processed resource group instance.
+	// Instance is the processed resource graph definition instance.
 	Instance *Resource
-	// Resources is a map of the processed resources in the resource group.
+	// Resources is a map of the processed resources in the resource graph definition.
 	Resources map[string]*Resource
-	// TopologicalOrder is the topological order of the resources in the resource group.
+	// TopologicalOrder is the topological order of the resources in the resource graph definition.
 	TopologicalOrder []string
 }
 
-// NewGraphRuntime creates a new runtime resource group from the resource group instance.
+// NewGraphRuntime creates a new runtime resource graph definition from the resource graph definition instance.
 func (rgd *Graph) NewGraphRuntime(newInstance *unstructured.Unstructured) (*runtime.ResourceGraphDefinitionRuntime, error) {
 	// we need to copy the resources to the runtime resources, mainly focusing
 	// on the variables and dependencies.

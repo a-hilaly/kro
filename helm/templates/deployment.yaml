@@ -48,7 +48,7 @@ spec:
             - name: KRO_HEALTH_PROBE_BIND_ADDRESS
               value: {{ .Values.config.healthProbeBindAddress | quote }}
             - name: KRO_RESOURCE_GROUP_CONCURRENT_RECONCILES
-              value: {{ .Values.config.resourceGroupConcurrentReconciles | quote }}
+              value: {{ .Values.config.resourceGraphDefinitionConcurrentReconciles | quote }}
             - name: KRO_DYNAMIC_CONTROLLER_CONCURRENT_RECONCILES
               value: {{ .Values.config.dynamicControllerConcurrentReconciles | quote }}
             - name: KRO_LOG_LEVEL
@@ -60,7 +60,7 @@ spec:
             - "$(KRO_METRICS_BIND_ADDRESS)"
             - --health-probe-bind-address
             - "$(KRO_HEALTH_PROBE_BIND_ADDRESS)"
-            - --resource-group-concurrent-reconciles
+            - --resource-graph-definition-concurrent-reconciles
             - "$(KRO_RESOURCE_GROUP_CONCURRENT_RECONCILES)"
             - --dynamic-controller-concurrent-reconciles
             - "$(KRO_DYNAMIC_CONTROLLER_CONCURRENT_RECONCILES)"

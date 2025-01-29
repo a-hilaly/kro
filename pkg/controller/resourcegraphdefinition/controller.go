@@ -62,7 +62,7 @@ func NewResourceGraphDefinitionReconciler(
 	crdWrapper := clientSet.CRD(kroclient.CRDWrapperConfig{
 		Log: log,
 	})
-	rgLogger := log.WithName("controller.resourceGroup")
+	rgLogger := log.WithName("controller.resourceGraphDefinition")
 
 	return &ResourceGraphDefinitionReconciler{
 		rootLogger:        log,
@@ -103,7 +103,7 @@ func (r *ResourceGraphDefinitionReconciler) Reconcile(ctx context.Context, resou
 		return ctrl.Result{}, nil
 	}
 
-	rlog.V(1).Info("Setting resource group as managed")
+	rlog.V(1).Info("Setting resource graph definition as managed")
 	if err := r.setManaged(ctx, resourcegraphdefinition); err != nil {
 		return ctrl.Result{}, err
 	}

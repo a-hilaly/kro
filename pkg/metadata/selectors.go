@@ -15,7 +15,7 @@ package metadata
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// Sometimes we need to search for resources that belong to given instance, resource group or node.
+// Sometimes we need to search for resources that belong to given instance, resource graph definition or node.
 // This is helpful to for garbage collection of resources that are no longer needed, or got
 // orphaned due to graph evolutions.
 
@@ -29,31 +29,31 @@ func NewInstanceSelector(instance metav1.Object) metav1.LabelSelector {
 	}
 }
 
-func NewResourceGraphDefinitionSelector(resourceGroup metav1.Object) metav1.LabelSelector {
+func NewResourceGraphDefinitionSelector(resourceGraphDefinition metav1.Object) metav1.LabelSelector {
 	return metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			ResourceGraphDefinitionIDLabel: string(resourceGroup.GetUID()),
-			// ResourceGraphDefinitionNameLabel:      resourceGroup.GetName(),
-			// ResourceGraphDefinitionNamespaceLabel: resourceGroup.GetNamespace(),
+			ResourceGraphDefinitionIDLabel: string(resourceGraphDefinition.GetUID()),
+			// ResourceGraphDefinitionNameLabel:      resourceGraphDefinition.GetName(),
+			// ResourceGraphDefinitionNamespaceLabel: resourceGraphDefinition.GetNamespace(),
 		},
 	}
 }
 
-func NewInstanceAndResourceGraphDefinitionSelector(instance metav1.Object, resourceGroup metav1.Object) metav1.LabelSelector {
+func NewInstanceAndResourceGraphDefinitionSelector(instance metav1.Object, resourceGraphDefinition metav1.Object) metav1.LabelSelector {
 	return metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			InstanceIDLabel:                string(instance.GetUID()),
-			ResourceGraphDefinitionIDLabel: string(resourceGroup.GetUID()),
+			ResourceGraphDefinitionIDLabel: string(resourceGraphDefinition.GetUID()),
 		},
 	}
 }
 
-func NewNodeAndInstanceAndResourceGraphDefinitionSelector(node metav1.Object, instance metav1.Object, resourceGroup metav1.Object) metav1.LabelSelector {
+func NewNodeAndInstanceAndResourceGraphDefinitionSelector(node metav1.Object, instance metav1.Object, resourceGraphDefinition metav1.Object) metav1.LabelSelector {
 	return metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			NodeIDLabel:                    node.GetName(),
 			InstanceIDLabel:                string(instance.GetUID()),
-			ResourceGraphDefinitionIDLabel: string(resourceGroup.GetUID()),
+			ResourceGraphDefinitionIDLabel: string(resourceGraphDefinition.GetUID()),
 		},
 	}
 }

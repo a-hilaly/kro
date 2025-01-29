@@ -47,7 +47,7 @@ var _ = Describe("Topology", func() {
 	})
 
 	It("should correctly order AWS resources in dependency graph", func() {
-		rg := generator.NewResourceGraphDefinition("test-topology",
+		rgd := generator.NewResourceGraphDefinition("test-topology",
 			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestTopology", "v1alpha1",
@@ -137,19 +137,19 @@ var _ = Describe("Topology", func() {
 			}, nil, nil),
 		)
 
-		Expect(env.Client.Create(ctx, rg)).To(Succeed())
+		Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 		// Verify ResourceGraphDefinition topology
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rg.Name,
+				Name:      rgd.Name,
 				Namespace: namespace,
-			}, rg)
+			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Verify graph is verified
 			var graphCondition *krov1alpha1.Condition
-			for _, cond := range rg.Status.Conditions {
+			for _, cond := range rgd.Status.Conditions {
 				if cond.Type == krov1alpha1.ResourceGraphDefinitionConditionTypeGraphVerified {
 					graphCondition = &cond
 					break
@@ -159,8 +159,8 @@ var _ = Describe("Topology", func() {
 			g.Expect(graphCondition.Status).To(Equal(metav1.ConditionTrue))
 
 			// Verify topological order
-			g.Expect(rg.Status.TopologicalOrder).To(HaveLen(5))
-			g.Expect(rg.Status.TopologicalOrder).To(Equal([]string{
+			g.Expect(rgd.Status.TopologicalOrder).To(HaveLen(5))
+			g.Expect(rgd.Status.TopologicalOrder).To(Equal([]string{
 				"clusterRole",
 				"vpc",
 				"subnetA",
@@ -171,7 +171,7 @@ var _ = Describe("Topology", func() {
 	})
 
 	It("should detect cyclic dependencies in AWS resource definitions", func() {
-		rg := generator.NewResourceGraphDefinition("test-topology-cyclic",
+		rgd := generator.NewResourceGraphDefinition("test-topology-cyclic",
 			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestTopologyCyclic", "v1alpha1",
@@ -205,17 +205,17 @@ var _ = Describe("Topology", func() {
 			}, nil, nil),
 		)
 
-		Expect(env.Client.Create(ctx, rg)).To(Succeed())
+		Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rg.Name,
+				Name:      rgd.Name,
 				Namespace: namespace,
-			}, rg)
+			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			var graphCondition *krov1alpha1.Condition
-			for _, cond := range rg.Status.Conditions {
+			for _, cond := range rgd.Status.Conditions {
 				if cond.Type == krov1alpha1.ResourceGraphDefinitionConditionTypeGraphVerified {
 					graphCondition = &cond
 					break
@@ -224,7 +224,7 @@ var _ = Describe("Topology", func() {
 			g.Expect(graphCondition).ToNot(BeNil())
 			g.Expect(graphCondition.Status).To(Equal(metav1.ConditionFalse))
 			g.Expect(*graphCondition.Reason).To(ContainSubstring("This would create a cycle"))
-			g.Expect(rg.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
+			g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
 		}, 10*time.Second, time.Second).Should(Succeed())
 	})
 })

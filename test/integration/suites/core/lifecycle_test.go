@@ -46,7 +46,7 @@ var _ = Describe("Update", func() {
 		Expect(env.Client.Create(ctx, ns)).To(Succeed())
 
 		// Create ResourceGraphDefinition for a simple deployment service
-		rg := generator.NewResourceGraphDefinition("test-update",
+		rgd := generator.NewResourceGraphDefinition("test-update",
 			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestUpdate", "v1alpha1",
@@ -94,17 +94,17 @@ var _ = Describe("Update", func() {
 			}, nil, nil),
 		)
 
-		Expect(env.Client.Create(ctx, rg)).To(Succeed())
+		Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 		// Verify ResourceGraphDefinition is ready
-		createdRG := &krov1alpha1.ResourceGraphDefinition{}
+		createdRGD := &krov1alpha1.ResourceGraphDefinition{}
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rg.Name,
+				Name:      rgd.Name,
 				Namespace: namespace,
-			}, createdRG)
+			}, createdRGD)
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(createdRG.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
+			g.Expect(createdRGD.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
 		}, 10*time.Second, time.Second).Should(Succeed())
 
 		// Create initial instance
@@ -183,7 +183,7 @@ var _ = Describe("Update", func() {
 			return errors.IsNotFound(err)
 		}, 20*time.Second, time.Second).Should(BeTrue())
 
-		Expect(env.Client.Delete(ctx, rg)).To(Succeed())
+		Expect(env.Client.Delete(ctx, rgd)).To(Succeed())
 		Expect(env.Client.Delete(ctx, ns)).To(Succeed())
 	})
 })

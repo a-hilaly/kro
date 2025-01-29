@@ -28,16 +28,16 @@ type ResourceGraphDefinitionOption func(*krov1alpha1.ResourceGraphDefinition)
 
 // NewResourceGraphDefinition creates a new ResourceGraphDefinition with the given name and options
 func NewResourceGraphDefinition(name string, opts ...ResourceGraphDefinitionOption) *krov1alpha1.ResourceGraphDefinition {
-	rg := &krov1alpha1.ResourceGraphDefinition{
+	rgd := &krov1alpha1.ResourceGraphDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
 
 	for _, opt := range opts {
-		opt(rg)
+		opt(rgd)
 	}
-	return rg
+	return rgd
 }
 
 // WithNamespace sets the namespace of the ResourceGraphDefinition

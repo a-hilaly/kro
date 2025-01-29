@@ -49,7 +49,7 @@ var _ = Describe("CRD", func() {
 	Context("CRD Creation", func() {
 		It("should create CRD when ResourceGraphDefinition is created", func() {
 			// Create a simple ResourceGraphDefinition
-			rg := generator.NewResourceGraphDefinition("test-crd",
+			rgd := generator.NewResourceGraphDefinition("test-crd",
 				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestResource", "v1alpha1",
@@ -72,7 +72,7 @@ var _ = Describe("CRD", func() {
 				}, nil, nil),
 			)
 
-			Expect(env.Client.Create(ctx, rg)).To(Succeed())
+			Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 			// Verify CRD is created
 			crd := &apiextensionsv1.CustomResourceDefinition{}
@@ -99,7 +99,7 @@ var _ = Describe("CRD", func() {
 
 		It("should update CRD when ResourceGraphDefinition is updated", func() {
 			// Create initial ResourceGraphDefinition
-			rg := generator.NewResourceGraphDefinition("test-crd-update",
+			rgd := generator.NewResourceGraphDefinition("test-crd-update",
 				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestUpdate", "v1alpha1",
@@ -110,7 +110,7 @@ var _ = Describe("CRD", func() {
 					nil,
 				),
 			)
-			Expect(env.Client.Create(ctx, rg)).To(Succeed())
+			Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 			// Wait for initial CRD
 			crd := &apiextensionsv1.CustomResourceDefinition{}
@@ -123,18 +123,18 @@ var _ = Describe("CRD", func() {
 			// Update ResourceGraphDefinition with new fields
 			Eventually(func(g Gomega) {
 				err := env.Client.Get(ctx, types.NamespacedName{
-					Name:      rg.Name,
+					Name:      rgd.Name,
 					Namespace: namespace,
-				}, rg)
+				}, rgd)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				rg.Spec.Schema.Spec = toRawExtension(map[string]interface{}{
+				rgd.Spec.Schema.Spec = toRawExtension(map[string]interface{}{
 					"field1": "string",
 					"field2": "integer | default=42",
 					"field3": "boolean",
 				})
 
-				err = env.Client.Update(ctx, rg)
+				err = env.Client.Update(ctx, rgd)
 				g.Expect(err).ToNot(HaveOccurred())
 			}, 10*time.Second, time.Second).Should(Succeed())
 
@@ -153,7 +153,7 @@ var _ = Describe("CRD", func() {
 
 		It("should delete CRD when ResourceGraphDefinition is deleted", func() {
 			// Create ResourceGraphDefinition
-			rg := generator.NewResourceGraphDefinition("test-crd-delete",
+			rgd := generator.NewResourceGraphDefinition("test-crd-delete",
 				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestDelete", "v1alpha1",
@@ -163,7 +163,7 @@ var _ = Describe("CRD", func() {
 					nil,
 				),
 			)
-			Expect(env.Client.Create(ctx, rg)).To(Succeed())
+			Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 			// Wait for CRD creation
 			crdName := "testdeletes.kro.run"
@@ -173,7 +173,7 @@ var _ = Describe("CRD", func() {
 			}, 10*time.Second, time.Second).Should(Succeed())
 
 			// Delete ResourceGraphDefinition
-			Expect(env.Client.Delete(ctx, rg)).To(Succeed())
+			Expect(env.Client.Delete(ctx, rgd)).To(Succeed())
 
 			// Verify CRD is deleted
 			Eventually(func() bool {

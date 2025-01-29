@@ -129,12 +129,12 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) error {
 
 	// This is one of the main reasons why we're splitting the controller into
 	// two parts. The instanciator is responsible for creating a new runtime
-	// instance of the resource group. The instance graph reconciler is responsible
+	// instance of the resource graph definition. The instance graph reconciler is responsible
 	// for reconciling the instance and its sub-resources, while keeping the same
 	// runtime object in it's fields.
 	rgRuntime, err := c.rgd.NewGraphRuntime(instance)
 	if err != nil {
-		return fmt.Errorf("failed to create runtime resource group: %w", err)
+		return fmt.Errorf("failed to create runtime resource graph definition: %w", err)
 	}
 
 	instanceSubResourcesLabeler, err := metadata.NewInstanceLabeler(instance).Merge(c.instanceLabeler)
