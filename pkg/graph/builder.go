@@ -128,7 +128,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	//    CEL expressions.
 	// 4. Extract the CEL expressions from the resource + validate them.
 
-	namespacedResources := map[k8sschema.GroupVersionKind]bool{}
+	namespacedResources := map[k8sschema.GroupKind]bool{}
 	apiResourceList, err := b.discoveryClient.ServerPreferredNamespacedResources()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve Kubernetes namespaced resources: %w", err)
@@ -136,7 +136,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	for _, resourceList := range apiResourceList {
 		for _, r := range resourceList.APIResources {
 			gvk := k8sschema.FromAPIVersionAndKind(resourceList.GroupVersion, r.Kind)
-			namespacedResources[gvk] = r.Namespaced
+			namespacedResources[gvk.GroupKind()] = r.Namespaced
 		}
 	}
 
@@ -246,7 +246,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 // It provides a high-level understanding of the resource, by extracting the
 // OpenAPI schema, emualting the resource and extracting the cel expressions
 // from the schema.
-func (b *Builder) buildRGResource(rgResource *v1alpha1.Resource, namespacedResources map[k8sschema.GroupVersionKind]bool) (*Resource, error) {
+func (b *Builder) buildRGResource(rgResource *v1alpha1.Resource, namespacedResources map[k8sschema.GroupKind]bool) (*Resource, error) {
 	// 1. We need to unmashal the resource into a map[string]interface{} to
 	//    make it easier to work with.
 	resourceObject := map[string]interface{}{}
@@ -321,7 +321,7 @@ func (b *Builder) buildRGResource(rgResource *v1alpha1.Resource, namespacedResou
 		return nil, fmt.Errorf("failed to parse includeWhen expressions: %v", err)
 	}
 
-	_, isNamespaced := namespacedResources[gvk]
+	_, isNamespaced := namespacedResources[gvk.GroupKind()]
 
 	// Note that at this point we don't inject the dependencies into the resource.
 	return &Resource{
