@@ -6,7 +6,7 @@ sidebar_position: 20
 
 ```yaml title="deploymentdbinstance-rg.yaml"
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: deploymentandawspostgres
 spec:

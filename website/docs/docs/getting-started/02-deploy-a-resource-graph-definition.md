@@ -2,21 +2,21 @@
 sidebar_position: 2
 ---
 
-# Deploy Your First ResourceGroup
+# Deploy Your First ResourceGraphDefinition
 
-This guide will walk you through creating your first Resource Group in **kro**.
-We'll create a simple `ResourceGroup` that demonstrates key kro features.
+This guide will walk you through creating your first Resource Graph Definition in **kro**.
+We'll create a simple `ResourceGraphDefinition` that demonstrates key kro features.
 
-## What is a **ResourceGroup**?
+## What is a **ResourceGraphDefinition**?
 
-A `ResourceGroup` lets you create new Kubernetes APIs that deploy multiple
+A `ResourceGraphDefinition` lets you create new Kubernetes APIs that deploy multiple
 resources together as a single, reusable unit. In this example, we’ll create a
-`ResourceGroup` that packages a reusable set of resources, including a
+`ResourceGraphDefinition` that packages a reusable set of resources, including a
 `Deployment`, `Service`, and `Ingress`. These resources are available in any
 Kubernetes cluster. Users can then call the API to deploy resources as a single
 unit, ensuring they're always created together with the right configuration.
 
-Under the hood, when you create a `ResourceGroup`, kro:
+Under the hood, when you create a `ResourceGraphDefinition`, kro:
 
 1. Treats your resources as a Directed Acyclic Graph (DAG) to understand their
    dependencies
@@ -32,14 +32,14 @@ Before you begin, make sure you have the following:
   cluster.
 - `kubectl` installed and configured to interact with your Kubernetes cluster.
 
-## Create your Application ResourceGroup
+## Create your Application ResourceGraphDefinition
 
-Let's create a Resource Group that combines a `Deployment`, a `Service` and
-`Ingress`. Save this as `resourcegroup.yaml`:
+Let's create a Resource Graph Definition that combines a `Deployment`, a `Service` and
+`Ingress`. Save this as `resourcegraphdefinition.yaml`:
 
-```yaml title="resourcegroup.yaml"
+```yaml title="resourcegraphdefinition.yaml"
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: my-application
 spec:
@@ -124,26 +124,26 @@ spec:
                           number: 80
 ```
 
-### Deploy the ResourceGroup
+### Deploy the ResourceGraphDefinition
 
-1. **Create a ResourceGroup manifest file**: Create a new file with the
-   `ResourceGroup` definition. You can use the example above.
+1. **Create a ResourceGraphDefinition manifest file**: Create a new file with the
+   `ResourceGraphDefinition` definition. You can use the example above.
 
-2. **Apply the `ResourceGroup`**: Use the `kubectl` command to deploy the
-   ResourceGroup to your Kubernetes cluster:
+2. **Apply the `ResourceGraphDefinition`**: Use the `kubectl` command to deploy the
+   ResourceGraphDefinition to your Kubernetes cluster:
 
    ```bash
-   kubectl apply -f resourcegroup.yaml
+   kubectl apply -f resourcegraphdefinition.yaml
    ```
 
-3. **Inpsect the `ResourceGroup`**: Check the status of the resources created by
-   the ResourceGroup using the `kubectl` command:
+3. **Inpsect the `ResourceGraphDefinition`**: Check the status of the resources created by
+   the ResourceGraphDefinition using the `kubectl` command:
 
    ```bash
    kubectl get rg my-application -owide
    ```
 
-   You should see the ResourceGroup in the `Active` state, along with relevant
+   You should see the ResourceGraphDefinition in the `Active` state, along with relevant
    information to help you understand your application:
 
    ```bash
@@ -153,7 +153,7 @@ spec:
 
 ### Create your Application Instance
 
-Now that your `ResourceGroup` is created, kro has generated a new API
+Now that your `ResourceGraphDefinition` is created, kro has generated a new API
 (Application) that orchestrates creation of the a `Deployment`, a `Service`, and
 an `Ingress`. Let's use it!
 

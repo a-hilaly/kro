@@ -52,7 +52,7 @@ The controllers are using the IAM controller to create the necessary roles for t
    - Deploy the controller
    - Create an instance of the controller
 
-3. Install all the Resource Group CRDs:
+3. Install all the Resource Graph Definition CRDs:
    ```
    kubectl apply -f crds/
    ```
@@ -62,7 +62,7 @@ The controllers are using the IAM controller to create the necessary roles for t
    kubectl apply -f controllers/
    ```
 
-5. Install the combined Resource Group controllers:
+5. Install the combined Resource Graph Definition controllers:
    ```
    kubectl apply -f resourcegraphdefinition.yaml
    ```

@@ -106,5 +106,5 @@ helm uninstall kro -n kro
 ```
 
 Keep in mind that this command will remove all kro resources from your cluster,
-except for the ResourceGroup CRD and any other custom resources you may have
+except for the ResourceGraphDefinition CRD and any other custom resources you may have
 created.
