@@ -221,7 +221,7 @@ var _ = Describe("Topology", func() {
 			}
 			g.Expect(graphCondition).ToNot(BeNil())
 			g.Expect(graphCondition.Status).To(Equal(metav1.ConditionFalse))
-			g.Expect(*graphCondition.Reason).To(ContainSubstring("This would create a cycle"))
+			g.Expect(*graphCondition.Reason).To(ContainSubstring("graph contains a cycle"))
 			g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
 		}, 10*time.Second, time.Second).Should(Succeed())
 	})

@@ -44,10 +44,10 @@ func networkingStack(
 			},
 		),
 		generator.WithResource("vpc", vpcDef(), nil, nil),
+		generator.WithResource("securityGroup", securityGroupDef(), nil, nil),
 		generator.WithResource("subnetAZA", subnetDef("a", "us-west-2a", "192.168.0.0/18"), nil, nil),
 		generator.WithResource("subnetAZB", subnetDef("b", "us-west-2b", "192.168.64.0/18"), nil, nil),
 		generator.WithResource("subnetAZC", subnetDef("c", "us-west-2c", "192.168.128.0/18"), nil, nil),
-		generator.WithResource("securityGroup", securityGroupDef(), nil, nil),
 	)
 
 	instanceGenerator := func(namespace, name string) *unstructured.Unstructured {
