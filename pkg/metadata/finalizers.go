@@ -18,7 +18,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/kro-run/kro/api/v1alpha1"
 )
@@ -42,36 +41,15 @@ func HasResourceGraphDefinitionFinalizer(obj metav1.Object) bool {
 	return containsString(obj.GetFinalizers(), kroFinalizer)
 }
 
-// SetInstanceFinalizer adds an instance-specific finalizer to the object.
-func SetInstanceFinalizer(obj metav1.Object, uid types.UID) {
-	finalizerName := getInstanceFinalizerName(uid)
-	if !HasInstanceFinalizer(obj, uid) {
-		obj.SetFinalizers(append(obj.GetFinalizers(), finalizerName))
-	}
-}
-
-// RemoveInstanceFinalizer removes an instance-specific finalizer from the object.
-func RemoveInstanceFinalizer(obj metav1.Object, uid types.UID) {
-	finalizerName := getInstanceFinalizerName(uid)
-	obj.SetFinalizers(removeString(obj.GetFinalizers(), finalizerName))
-}
-
-// HasInstanceFinalizer checks if the object has an instance-specific finalizer.
-func HasInstanceFinalizer(obj metav1.Object, uid types.UID) bool {
-	finalizerName := getInstanceFinalizerName(uid)
-	return containsString(obj.GetFinalizers(), finalizerName)
-}
-
 // SetInstanceFinalizerUnstructured adds an instance-specific finalizer to an unstructured object.
-func SetInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.UID) error {
-	finalizerName := getInstanceFinalizerName(uid)
+func SetInstanceFinalizerUnstructured(obj *unstructured.Unstructured) error {
 	finalizers, found, err := unstructured.NestedStringSlice(obj.Object, "metadata", "finalizers")
 	if err != nil {
 		return fmt.Errorf("error getting finalizers: %w", err)
 	}
 
-	if !found || !containsString(finalizers, finalizerName) {
-		finalizers = append(finalizers, finalizerName)
+	if !found || !containsString(finalizers, kroFinalizer) {
+		finalizers = append(finalizers, kroFinalizer)
 		if err := unstructured.SetNestedStringSlice(obj.Object, finalizers, "metadata", "finalizers"); err != nil {
 			return fmt.Errorf("error setting finalizers: %w", err)
 		}
@@ -80,15 +58,14 @@ func SetInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.
 }
 
 // RemoveInstanceFinalizerUnstructured removes an instance-specific finalizer from an unstructured object.
-func RemoveInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.UID) error {
-	finalizerName := getInstanceFinalizerName(uid)
+func RemoveInstanceFinalizerUnstructured(obj *unstructured.Unstructured) error {
 	finalizers, found, err := unstructured.NestedStringSlice(obj.Object, "metadata", "finalizers")
 	if err != nil {
 		return fmt.Errorf("error getting finalizers: %w", err)
 	}
 
 	if found {
-		finalizers = removeString(finalizers, finalizerName)
+		finalizers = removeString(finalizers, kroFinalizer)
 		if err := unstructured.SetNestedStringSlice(obj.Object, finalizers, "metadata", "finalizers"); err != nil {
 			return fmt.Errorf("error setting finalizers: %w", err)
 		}
@@ -97,8 +74,7 @@ func RemoveInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid typ
 }
 
 // HasInstanceFinalizerUnstructured checks if an unstructured object has an instance-specific finalizer.
-func HasInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.UID) (bool, error) {
-	finalizerName := getInstanceFinalizerName(uid)
+func HasInstanceFinalizerUnstructured(obj *unstructured.Unstructured) (bool, error) {
 	finalizers, found, err := unstructured.NestedStringSlice(obj.Object, "metadata", "finalizers")
 	if err != nil {
 		return false, fmt.Errorf("error getting finalizers: %w", err)
@@ -108,14 +84,10 @@ func HasInstanceFinalizerUnstructured(obj *unstructured.Unstructured, uid types.
 		return false, nil
 	}
 
-	return containsString(finalizers, finalizerName), nil
+	return containsString(finalizers, kroFinalizer), nil
 }
 
 // Helper functions
-
-func getInstanceFinalizerName(uid types.UID) string {
-	return fmt.Sprintf("%s.%s", string(uid), kroFinalizer)
-}
 
 func containsString(slice []string, s string) bool {
 	for _, item := range slice {

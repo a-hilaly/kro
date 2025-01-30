@@ -394,7 +394,7 @@ func (igr *instanceGraphReconciler) finalizeDeletion(ctx context.Context) error 
 
 	// Remove finalizer from instance
 	instance := igr.runtime.GetInstance()
-	patched, err := igr.setUnmanaged(ctx, instance, instance.GetUID())
+	patched, err := igr.setUnmanaged(ctx, instance)
 	if err != nil {
 		return fmt.Errorf("failed to remove instance finalizer: %w", err)
 	}
@@ -405,14 +405,14 @@ func (igr *instanceGraphReconciler) finalizeDeletion(ctx context.Context) error 
 
 // setManaged ensures the instance has the necessary finalizer and labels.
 func (igr *instanceGraphReconciler) setManaged(ctx context.Context, obj *unstructured.Unstructured, uid types.UID) (*unstructured.Unstructured, error) {
-	if exist, _ := metadata.HasInstanceFinalizerUnstructured(obj, uid); exist {
+	if exist, _ := metadata.HasInstanceFinalizerUnstructured(obj); exist {
 		return obj, nil
 	}
 
 	igr.log.V(1).Info("Setting managed state", "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 	copy := obj.DeepCopy()
-	if err := metadata.SetInstanceFinalizerUnstructured(copy, uid); err != nil {
+	if err := metadata.SetInstanceFinalizerUnstructured(copy); err != nil {
 		return nil, fmt.Errorf("failed to set finalizer: %w", err)
 	}
 
@@ -429,15 +429,15 @@ func (igr *instanceGraphReconciler) setManaged(ctx context.Context, obj *unstruc
 }
 
 // setUnmanaged removes the finalizer from the instance.
-func (igr *instanceGraphReconciler) setUnmanaged(ctx context.Context, obj *unstructured.Unstructured, uid types.UID) (*unstructured.Unstructured, error) {
-	if exist, _ := metadata.HasInstanceFinalizerUnstructured(obj, uid); !exist {
+func (igr *instanceGraphReconciler) setUnmanaged(ctx context.Context, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	if exist, _ := metadata.HasInstanceFinalizerUnstructured(obj); !exist {
 		return obj, nil
 	}
 
 	igr.log.V(1).Info("Removing managed state", "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 	copy := obj.DeepCopy()
-	if err := metadata.RemoveInstanceFinalizerUnstructured(copy, uid); err != nil {
+	if err := metadata.RemoveInstanceFinalizerUnstructured(copy); err != nil {
 		return nil, fmt.Errorf("failed to remove finalizer: %w", err)
 	}
 
