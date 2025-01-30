@@ -72,7 +72,7 @@ func NewResourceGraphDefinitionReconciler(
 		allowCRDDeletion:  allowCRDDeletion,
 		crdManager:        crdWrapper,
 		dynamicController: dynamicController,
-		metadataLabeler:   metadata.NewKroMetaLabeler("0.1.0", "kro-pod"),
+		metadataLabeler:   metadata.NewKroMetaLabeler("0.2.0", "kro-pod"),
 		rgBuilder:         builder,
 	}
 }
