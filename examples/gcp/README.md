@@ -106,7 +106,7 @@ gcloud services enable \
 
 ## Cleanup
 
-When you are done with all the chapters and want to cleanup the environment, follow these steps:
+If you are operating in a dev environment and want to clean it up, follow these steps:
 
 ```
 # in *nix shell USER should be set. if not set USERNAME explicitly
