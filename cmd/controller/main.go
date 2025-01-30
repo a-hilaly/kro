@@ -16,6 +16,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
@@ -123,6 +124,8 @@ func main() {
 		os.Exit(1)
 	}
 	restConfig := set.RESTConfig()
+
+	fmt.Println("pilouploup")
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme: scheme,
