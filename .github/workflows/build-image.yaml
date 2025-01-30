@@ -66,4 +66,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-          HELM_IMAGE=ghcr.io/${{ github.repository }} make package-helm publish-helm
+          # Use sed compatible with Linux (GitHub Actions runners)
+          cp ./config/crd/bases/* helm/crds/
+          sed -i "s/tag: .*/tag: \"${RELEASE_VERSION}\"/" helm/values.yaml
+          sed -i "s/version: .*/version: ${RELEASE_VERSION}/" helm/Chart.yaml
+          sed -i "s/appVersion: .*/appVersion: \"${RELEASE_VERSION}\"/" helm/Chart.yaml
+          helm package helm
+          HELM_IMAGE=ghcr.io/${{ github.repository }} make publish-helm
