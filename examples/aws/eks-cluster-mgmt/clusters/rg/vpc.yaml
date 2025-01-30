@@ -24,7 +24,7 @@ spec:
       publicSubnet2ID: ${publicSubnet2.status.subnetID}
       privateSubnet1ID: ${privateSubnet1.status.subnetID}
       privateSubnet2ID: ${privateSubnet2.status.subnetID}
-  resources: # how to publish a field in the RG claim e.g. vpcID
+  resources: # how to publish a field in the RGD claim e.g. vpcID
   - id: vpc
     template:
       apiVersion: ec2.services.k8s.aws/v1alpha1

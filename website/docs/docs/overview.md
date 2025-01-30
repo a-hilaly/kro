@@ -4,16 +4,16 @@ sidebar_position: 1
 
 # What is kro?
 
-**kro** (Kube Resource Orchestrator) is an open-source, Kubernetes-native project 
-that allows you to define custom **Kubernetes APIs** using simple and straightforward 
-configuration. With kro, you can easily configure new custom APIs that create a 
-group of Kubernetes objects and the logical operations between them. kro leverages 
-[CEL (Common Expression Language)](https://github.com/google/cel-spec), the same 
+**kro** (Kube Resource Orchestrator) is an open-source, Kubernetes-native project
+that allows you to define custom **Kubernetes APIs** using simple and straightforward
+configuration. With kro, you can easily configure new custom APIs that create a
+group of Kubernetes objects and the logical operations between them. kro leverages
+[CEL (Common Expression Language)](https://github.com/google/cel-spec), the same
 language used by Kubernetes webhooks, for logical operations. Using CEL expressions,
 you can easily pass values from one object to another and incorporate conditionals into
-your custom API definitions. Based on the CEL expressions, kro automatically calculates 
-the order in which objects should be created. You can define default values for fields 
-in the API specification, streamlining the process for end users who can then 
+your custom API definitions. Based on the CEL expressions, kro automatically calculates
+the order in which objects should be created. You can define default values for fields
+in the API specification, streamlining the process for end users who can then
 effortlessly invoke these custom APIs to create grouped resources.
 
 # How does kro work?
@@ -49,7 +49,7 @@ Custom Resources for the ResourceGraphDefinition CRD.
 In the depicted example, the **Platform Team** has created a **RG** with
 arbitrary name "Application Stack" that encapsulates the necessary resources,
 along with any additional logic, abstractions, and security best practices. When
-the RG is applied to the cluster, a new API of kind ApplicationStack is created
+the RGD is applied to the cluster, a new API of kind ApplicationStack is created
 and available for Developer to interact with. The Developers no longer need to
 directly manage the underlying infrastructure complexities, as the custom API
 handles the deployment and configuration of the required resources.
