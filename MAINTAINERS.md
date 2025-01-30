@@ -10,3 +10,4 @@ The current Maintainers Group for the kro project consists of:
 | [@matthchr](https://github.com/matthchr)                | Microsoft |                   |
 | [@nicslatts](https://github.com/nicslatts)              | Google    |                   |
 | [@rynowak](https://github.com/rynowak)                  | Microsoft |                   |
+| [@eqe-aws](https://github.com/eqe-aws)                  | AWS       |                   |
