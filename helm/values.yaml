@@ -5,7 +5,7 @@ fullnameOverride: ""
 
 image:
   # The location of the container image repository
-  repository: public.ecr.aws/kro/controller
+  repository: ghcr.io/kro-run/kro/controller
   # Image pull policy (IfNotPresent: pull the image only if it is not present locally)
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
