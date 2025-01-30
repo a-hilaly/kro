@@ -2,7 +2,7 @@
 AWS_ACCOUNT_ID ?= $(shell aws sts get-caller-identity --query Account --output text)
 AWS_REGION ?= us-west-2
 RELEASE_VERSION ?= dev-$(shell git rev-parse --short HEAD)
-ECR_REPO ?= public.ecr.aws/kro
+ECR_REPO ?= ghcr.io/a-hilaly
 
 CONTROLLER_IMAGE ?= ${ECR_REPO}/controller:${RELEASE_VERSION}
 HELM_IMAGE ?= ${ECR_REPO}
@@ -176,13 +176,13 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 
 .PHONY: image
 build-image: ## Build the kro controller images using ko build
-	$(WITH_GOFLAGS) KOCACHE=$(KOCACHE) KO_DOCKER_REPO="public.ecr.aws/kro/controller" \
+	$(WITH_GOFLAGS) KOCACHE=$(KOCACHE) \
 		ko build --bare github.com/kro-run/kro/cmd/controller \
 		--push=false --tags ${RELEASE_VERSION} --sbom=none
 
 .PHONY: publish
 publish-image: ## Publish the kro controller images to ECR
-	$(WITH_GOFLAGS) KOCACHE=$(KOCACHE) KO_DOCKER_REPO="public.ecr.aws/kro/controller" \
+	$(WITH_GOFLAGS) KOCACHE=$(KOCACHE) \
 		ko publish --bare github.com/kro-run/kro/cmd/controller \
 		--tags ${RELEASE_VERSION} --sbom=none
 
