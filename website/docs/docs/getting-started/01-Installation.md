@@ -40,7 +40,7 @@ echo $KRO_VERSION
 ```
 Install kro using Helm
 ```
-helm install kro oci://public.ecr.aws/kro/kro \
+helm install kro oci://ghcr.io/kro-run/kro/kro \
   --namespace kro \
   --create-namespace \
   --version=${KRO_VERSION}
@@ -84,7 +84,7 @@ export KRO_VERSION=<new-version>
 
 Upgrade the controller
 ```
-helm upgrade kro oci://public.ecr.aws/kro/kro \
+helm upgrade kro oci://ghcr.io/kro-run/kro/kro \
   --namespace kro \
   --version=${KRO_VERSION}
 ```
