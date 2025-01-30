@@ -18,7 +18,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/kro-run/kro/api/v1alpha1"
 )
@@ -40,26 +39,6 @@ func RemoveResourceGraphDefinitionFinalizer(obj metav1.Object) {
 // HasResourceGraphDefinitionFinalizer checks if the object has the Kro finalizer.
 func HasResourceGraphDefinitionFinalizer(obj metav1.Object) bool {
 	return containsString(obj.GetFinalizers(), kroFinalizer)
-}
-
-// SetInstanceFinalizer adds an instance-specific finalizer to the object.
-func SetInstanceFinalizer(obj metav1.Object, uid types.UID) {
-	finalizerName := getInstanceFinalizerName(uid)
-	if !HasInstanceFinalizer(obj, uid) {
-		obj.SetFinalizers(append(obj.GetFinalizers(), finalizerName))
-	}
-}
-
-// RemoveInstanceFinalizer removes an instance-specific finalizer from the object.
-func RemoveInstanceFinalizer(obj metav1.Object, uid types.UID) {
-	finalizerName := getInstanceFinalizerName(uid)
-	obj.SetFinalizers(removeString(obj.GetFinalizers(), finalizerName))
-}
-
-// HasInstanceFinalizer checks if the object has an instance-specific finalizer.
-func HasInstanceFinalizer(obj metav1.Object, uid types.UID) bool {
-	finalizerName := getInstanceFinalizerName(uid)
-	return containsString(obj.GetFinalizers(), finalizerName)
 }
 
 // SetInstanceFinalizerUnstructured adds an instance-specific finalizer to an unstructured object.
@@ -109,10 +88,6 @@ func HasInstanceFinalizerUnstructured(obj *unstructured.Unstructured) (bool, err
 }
 
 // Helper functions
-
-func getInstanceFinalizerName(uid types.UID) string {
-	return fmt.Sprintf("%s.%s", string(uid), kroFinalizer)
-}
 
 func containsString(slice []string, s string) bool {
 	for _, item := range slice {

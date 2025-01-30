@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestResourceGraphDefinitionFinalizer(t *testing.T) {
@@ -68,55 +67,7 @@ func TestResourceGraphDefinitionFinalizer(t *testing.T) {
 	}
 }
 
-func TestInstanceFinalizer(t *testing.T) {
-	uid := types.UID("test-uid")
-	cases := []struct {
-		name          string
-		initialObject metav1.Object
-		operation     func(metav1.Object, types.UID)
-		check         func(metav1.Object, types.UID) bool
-		expected      bool
-	}{
-		{
-			name:          "Set instance finalizer on objet w/o finalizers",
-			initialObject: &metav1.ObjectMeta{},
-			operation:     SetInstanceFinalizer,
-			check:         HasInstanceFinalizer,
-			expected:      true,
-		},
-		{
-			name:          "Set instanc finalizer on object w/ existing finalizers",
-			initialObject: &metav1.ObjectMeta{Finalizers: []string{"some-other-finalizer"}},
-			operation:     SetInstanceFinalizer,
-			check:         HasInstanceFinalizer,
-			expected:      true,
-		},
-		{
-			name:          "Remove instance finalizer from object that has it",
-			initialObject: &metav1.ObjectMeta{Finalizers: []string{getInstanceFinalizerName(uid)}},
-			operation:     RemoveInstanceFinalizer,
-			check:         HasInstanceFinalizer,
-			expected:      false,
-		},
-		{
-			name:          "Try to remove instance finalizer when its not present",
-			initialObject: &metav1.ObjectMeta{Finalizers: []string{"some-other-finalizer"}},
-			operation:     RemoveInstanceFinalizer,
-			check:         HasInstanceFinalizer,
-			expected:      false,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.operation(tc.initialObject, uid)
-			assert.Equal(t, tc.expected, tc.check(tc.initialObject, uid))
-		})
-	}
-}
-
 func TestInstanceFinalizerUnstructured(t *testing.T) {
-	uid := types.UID("test-uid")
 	cases := []struct {
 		name          string
 		initialObject *unstructured.Unstructured
@@ -154,7 +105,7 @@ func TestInstanceFinalizerUnstructured(t *testing.T) {
 			initialObject: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"metadata": map[string]interface{}{
-						"finalizers": []interface{}{getInstanceFinalizerName(uid)},
+						"finalizers": []interface{}{kroFinalizer},
 					},
 				},
 			},
