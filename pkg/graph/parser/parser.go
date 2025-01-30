@@ -82,10 +82,23 @@ func getExpectedTypes(schema *spec.Schema) ([]string, error) {
 	// Handle OneOf schemas
 	if len(schema.OneOf) > 0 {
 		var types []string
-		for _, subType := range schema.OneOf {
-			types = append(types, subType.Type...)
+
+		for _, subSchema := range schema.OneOf {
+			// If there are structural constraints, inject object
+			if len(subSchema.Required) > 0 || subSchema.Not != nil {
+				if !slices.Contains(types, "object") {
+					types = append(types, "object")
+				}
+			}
+			// Collect types if present
+			if len(subSchema.Type) > 0 {
+				types = append(types, subSchema.Type...)
+			}
 		}
-		return types, nil
+		// If we found any types, return them
+		if len(types) > 0 {
+			return types, nil
+		}
 	}
 
 	// Handle AnyOf schemas

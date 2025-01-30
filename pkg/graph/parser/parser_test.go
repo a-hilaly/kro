@@ -1115,3 +1115,174 @@ func TestOneOfAndAnyOf(t *testing.T) {
 		})
 	}
 }
+func TestOneOfWithStructuralConstraints(t *testing.T) {
+	t.Run("networkRef style schema with structural constraints", func(t *testing.T) {
+		schema := &spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"networkRef": {
+						SchemaProps: spec.SchemaProps{
+							OneOf: []spec.Schema{
+								{
+									SchemaProps: spec.SchemaProps{
+										Not: &spec.Schema{
+											SchemaProps: spec.SchemaProps{
+												Required: []string{"external"},
+											},
+										},
+										Required: []string{"name"},
+									},
+								},
+								{
+									SchemaProps: spec.SchemaProps{
+										Not: &spec.Schema{
+											SchemaProps: spec.SchemaProps{
+												AnyOf: []spec.Schema{
+													{SchemaProps: spec.SchemaProps{Required: []string{"name"}}},
+													{SchemaProps: spec.SchemaProps{Required: []string{"namespace"}}},
+												},
+											},
+										},
+										Required: []string{"external"},
+									},
+								},
+							},
+							Properties: map[string]spec.Schema{
+								"name": {
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"string"},
+									},
+								},
+								"external": {
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"string"},
+									},
+								},
+								"namespace": {
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"string"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		resource := map[string]interface{}{
+			"networkRef": map[string]interface{}{
+				"name": "${network.metadata.name}",
+			},
+		}
+
+		expressions, err := ParseResource(resource, schema)
+		if err != nil {
+			t.Fatalf("ParseResource() error = %v", err)
+		}
+
+		if len(expressions) != 1 {
+			t.Fatalf("Expected 1 expression, got %d", len(expressions))
+		}
+
+		expected := variable.FieldDescriptor{
+			Path:                 "networkRef.name",
+			Expressions:          []string{"network.metadata.name"},
+			ExpectedTypes:        []string{"string"},
+			StandaloneExpression: true,
+		}
+
+		if !reflect.DeepEqual(expressions[0].Path, expected.Path) {
+			t.Errorf("Expected path %s, got %s", expected.Path, expressions[0].Path)
+		}
+	})
+
+	t.Run("networkRef with external reference", func(t *testing.T) {
+		schema := &spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"networkRef": {
+						SchemaProps: spec.SchemaProps{
+							OneOf: []spec.Schema{
+								{
+									SchemaProps: spec.SchemaProps{
+										Not: &spec.Schema{
+											SchemaProps: spec.SchemaProps{
+												Required: []string{"external"},
+											},
+										},
+										Required: []string{"name"},
+									},
+								},
+								{
+									SchemaProps: spec.SchemaProps{
+										Not: &spec.Schema{
+											SchemaProps: spec.SchemaProps{
+												AnyOf: []spec.Schema{
+													{SchemaProps: spec.SchemaProps{Required: []string{"name"}}},
+													{SchemaProps: spec.SchemaProps{Required: []string{"namespace"}}},
+												},
+											},
+										},
+										Required: []string{"external"},
+									},
+								},
+							},
+							Properties: map[string]spec.Schema{
+								"name": {
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"string"},
+									},
+								},
+								"external": {
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"string"},
+									},
+								},
+								"namespace": {
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"string"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		resource := map[string]interface{}{
+			"networkRef": map[string]interface{}{
+				"external": "${network.selfLink}",
+			},
+		}
+
+		expressions, err := ParseResource(resource, schema)
+		if err != nil {
+			t.Fatalf("ParseResource() error = %v", err)
+		}
+
+		if len(expressions) != 1 {
+			t.Fatalf("Expected 1 expression, got %d", len(expressions))
+		}
+
+		expected := variable.FieldDescriptor{
+			Path:                 "networkRef.external",
+			Expressions:          []string{"network.selfLink"},
+			ExpectedTypes:        []string{"string"},
+			StandaloneExpression: true,
+		}
+
+		if !reflect.DeepEqual(expressions[0].Path, expected.Path) {
+			t.Errorf("Expected path %s, got %s", expected.Path, expressions[0].Path)
+		}
+		if !reflect.DeepEqual(expressions[0].Expressions, expected.Expressions) {
+			t.Errorf("Expected expressions %v, got %v", expected.Expressions, expressions[0].Expressions)
+		}
+		if !reflect.DeepEqual(expressions[0].ExpectedTypes, expected.ExpectedTypes) {
+			t.Errorf("Expected types %v, got %v", expected.ExpectedTypes, expressions[0].ExpectedTypes)
+		}
+	})
+}
