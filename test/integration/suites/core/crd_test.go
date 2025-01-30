@@ -50,7 +50,6 @@ var _ = Describe("CRD", func() {
 		It("should create CRD when ResourceGraphDefinition is created", func() {
 			// Create a simple ResourceGraphDefinition
 			rgd := generator.NewResourceGraphDefinition("test-crd",
-				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestResource", "v1alpha1",
 					map[string]interface{}{
@@ -100,7 +99,6 @@ var _ = Describe("CRD", func() {
 		It("should update CRD when ResourceGraphDefinition is updated", func() {
 			// Create initial ResourceGraphDefinition
 			rgd := generator.NewResourceGraphDefinition("test-crd-update",
-				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestUpdate", "v1alpha1",
 					map[string]interface{}{
@@ -123,8 +121,7 @@ var _ = Describe("CRD", func() {
 			// Update ResourceGraphDefinition with new fields
 			Eventually(func(g Gomega) {
 				err := env.Client.Get(ctx, types.NamespacedName{
-					Name:      rgd.Name,
-					Namespace: namespace,
+					Name: rgd.Name,
 				}, rgd)
 				g.Expect(err).ToNot(HaveOccurred())
 
@@ -154,7 +151,6 @@ var _ = Describe("CRD", func() {
 		It("should delete CRD when ResourceGraphDefinition is deleted", func() {
 			// Create ResourceGraphDefinition
 			rgd := generator.NewResourceGraphDefinition("test-crd-delete",
-				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestDelete", "v1alpha1",
 					map[string]interface{}{

@@ -40,13 +40,6 @@ func NewResourceGraphDefinition(name string, opts ...ResourceGraphDefinitionOpti
 	return rgd
 }
 
-// WithNamespace sets the namespace of the ResourceGraphDefinition
-func WithNamespace(namespace string) ResourceGraphDefinitionOption {
-	return func(rgd *krov1alpha1.ResourceGraphDefinition) {
-		rgd.Namespace = namespace
-	}
-}
-
 // WithSchema sets the definition and status of the ResourceGraphDefinition
 func WithSchema(kind, version string, spec, status map[string]interface{}) ResourceGraphDefinitionOption {
 	rawSpec, err := json.Marshal(spec)

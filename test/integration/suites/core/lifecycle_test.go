@@ -47,7 +47,6 @@ var _ = Describe("Update", func() {
 
 		// Create ResourceGraphDefinition for a simple deployment service
 		rgd := generator.NewResourceGraphDefinition("test-update",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestUpdate", "v1alpha1",
 				map[string]interface{}{
@@ -100,8 +99,7 @@ var _ = Describe("Update", func() {
 		createdRGD := &krov1alpha1.ResourceGraphDefinition{}
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, createdRGD)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(createdRGD.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))

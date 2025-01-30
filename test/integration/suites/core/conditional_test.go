@@ -53,7 +53,6 @@ var _ = Describe("Conditions", func() {
 
 	It("should not create deployment, service, and configmap due to condition deploymentEnabled == false", func() {
 		rgd := generator.NewResourceGraphDefinition("test-conditions",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestConditions", "v1alpha1",
 				map[string]interface{}{
@@ -202,8 +201,7 @@ var _ = Describe("Conditions", func() {
 		createdRGD := &krov1alpha1.ResourceGraphDefinition{}
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, createdRGD)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -354,8 +352,7 @@ var _ = Describe("Conditions", func() {
 		// Verify ResourceGraphDefinition is deleted
 		Eventually(func() bool {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, &krov1alpha1.ResourceGraphDefinition{})
 			return errors.IsNotFound(err)
 		}, 20*time.Second, time.Second).Should(BeTrue())

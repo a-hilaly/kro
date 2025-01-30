@@ -54,7 +54,6 @@ var _ = Describe("Readiness", func() {
 	It(`should wait for deployment to have deployment.spec.replicas 
 		== deployment.status.availableReplicas before creating service`, func() {
 		rgd := generator.NewResourceGraphDefinition("test-readiness",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestReadiness", "v1alpha1",
 				map[string]interface{}{
@@ -143,8 +142,7 @@ var _ = Describe("Readiness", func() {
 		createdRGD := &krov1alpha1.ResourceGraphDefinition{}
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, createdRGD)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -286,8 +284,7 @@ var _ = Describe("Readiness", func() {
 		// Verify ResourceGraphDefinition is deleted
 		Eventually(func() bool {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, &krov1alpha1.ResourceGraphDefinition{})
 			return errors.IsNotFound(err)
 		}, 20*time.Second, time.Second).Should(BeTrue())

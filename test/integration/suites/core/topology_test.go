@@ -48,7 +48,6 @@ var _ = Describe("Topology", func() {
 
 	It("should correctly order AWS resources in dependency graph", func() {
 		rgd := generator.NewResourceGraphDefinition("test-topology",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestTopology", "v1alpha1",
 				map[string]interface{}{
@@ -172,7 +171,6 @@ var _ = Describe("Topology", func() {
 
 	It("should detect cyclic dependencies in AWS resource definitions", func() {
 		rgd := generator.NewResourceGraphDefinition("test-topology-cyclic",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestTopologyCyclic", "v1alpha1",
 				map[string]interface{}{

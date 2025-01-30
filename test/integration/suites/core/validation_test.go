@@ -48,7 +48,6 @@ var _ = Describe("Validation", func() {
 	Context("Resource IDs", func() {
 		It("should validate correct resource naming conventions", func() {
 			rgd := generator.NewResourceGraphDefinition("test-validation",
-				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestValidation", "v1alpha1",
 					map[string]interface{}{
@@ -66,8 +65,7 @@ var _ = Describe("Validation", func() {
 
 			Eventually(func(g Gomega) {
 				err := env.Client.Get(ctx, types.NamespacedName{
-					Name:      rgd.Name,
-					Namespace: namespace,
+					Name: rgd.Name,
 				}, rgd)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
@@ -90,7 +88,6 @@ var _ = Describe("Validation", func() {
 
 			for _, invalidName := range invalidNames {
 				rgd := generator.NewResourceGraphDefinition(fmt.Sprintf("test-validation-%s", rand.String(5)),
-					generator.WithNamespace(namespace),
 					generator.WithSchema(
 						"TestValidation", "v1alpha1",
 						map[string]interface{}{
@@ -105,8 +102,7 @@ var _ = Describe("Validation", func() {
 
 				Eventually(func(g Gomega) {
 					err := env.Client.Get(ctx, types.NamespacedName{
-						Name:      rgd.Name,
-						Namespace: namespace,
+						Name: rgd.Name,
 					}, rgd)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
@@ -128,7 +124,6 @@ var _ = Describe("Validation", func() {
 
 		It("should reject duplicate resource IDs", func() {
 			rgd := generator.NewResourceGraphDefinition("test-validation-dup",
-				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestValidation", "v1alpha1",
 					map[string]interface{}{
@@ -144,8 +139,7 @@ var _ = Describe("Validation", func() {
 
 			Eventually(func(g Gomega) {
 				err := env.Client.Get(ctx, types.NamespacedName{
-					Name:      rgd.Name,
-					Namespace: namespace,
+					Name: rgd.Name,
 				}, rgd)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
@@ -168,7 +162,6 @@ var _ = Describe("Validation", func() {
 	Context("Kubernetes Object Structure", func() {
 		It("should validate correct kubernetes object structure", func() {
 			rgd := generator.NewResourceGraphDefinition("test-k8s-valid",
-				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestK8sValidation", "v1alpha1",
 					map[string]interface{}{
@@ -189,8 +182,7 @@ var _ = Describe("Validation", func() {
 
 			Eventually(func(g Gomega) {
 				err := env.Client.Get(ctx, types.NamespacedName{
-					Name:      rgd.Name,
-					Namespace: namespace,
+					Name: rgd.Name,
 				}, rgd)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
@@ -230,7 +222,6 @@ var _ = Describe("Validation", func() {
 
 			for i, invalidObj := range invalidObjects {
 				rgd := generator.NewResourceGraphDefinition(fmt.Sprintf("test-k8s-invalid-%d", i),
-					generator.WithNamespace(namespace),
 					generator.WithSchema(
 						"TestK8sValidation", "v1alpha1",
 						map[string]interface{}{
@@ -245,8 +236,7 @@ var _ = Describe("Validation", func() {
 
 				Eventually(func(g Gomega) {
 					err := env.Client.Get(ctx, types.NamespacedName{
-						Name:      rgd.Name,
-						Namespace: namespace,
+						Name: rgd.Name,
 					}, rgd)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
@@ -266,7 +256,6 @@ var _ = Describe("Validation", func() {
 
 			for _, kind := range validKinds {
 				rgd := generator.NewResourceGraphDefinition(fmt.Sprintf("test-kind-%s", rand.String(5)),
-					generator.WithNamespace(namespace),
 					generator.WithSchema(
 						kind, "v1alpha1",
 						map[string]interface{}{
@@ -280,8 +269,7 @@ var _ = Describe("Validation", func() {
 
 				Eventually(func(g Gomega) {
 					err := env.Client.Get(ctx, types.NamespacedName{
-						Name:      rgd.Name,
-						Namespace: namespace,
+						Name: rgd.Name,
 					}, rgd)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
@@ -301,7 +289,6 @@ var _ = Describe("Validation", func() {
 
 			for _, kind := range invalidKinds {
 				rgd := generator.NewResourceGraphDefinition(fmt.Sprintf("test-kind-%s", rand.String(5)),
-					generator.WithNamespace(namespace),
 					generator.WithSchema(
 						kind, "v1alpha1",
 						map[string]interface{}{
@@ -315,8 +302,7 @@ var _ = Describe("Validation", func() {
 
 				Eventually(func(g Gomega) {
 					err := env.Client.Get(ctx, types.NamespacedName{
-						Name:      rgd.Name,
-						Namespace: namespace,
+						Name: rgd.Name,
 					}, rgd)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
@@ -328,7 +314,6 @@ var _ = Describe("Validation", func() {
 	Context("Proper Cleanup", func() {
 		It("should not panic when deleting an inactive ResourceGraphDefinition", func() {
 			rgd := generator.NewResourceGraphDefinition("test-cleanup",
-				generator.WithNamespace(namespace),
 				generator.WithSchema(
 					"TestCleanup", "v1alpha1",
 					map[string]interface{}{
@@ -349,8 +334,7 @@ var _ = Describe("Validation", func() {
 
 			Eventually(func(g Gomega) {
 				err := env.Client.Get(ctx, types.NamespacedName{
-					Name:      rgd.Name,
-					Namespace: namespace,
+					Name: rgd.Name,
 				}, rgd)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))

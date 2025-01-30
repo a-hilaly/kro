@@ -53,7 +53,6 @@ var _ = Describe("Recovery", func() {
 	It("should recover from invalid state and use latest valid configuration", func() {
 		// Create initial valid ResourceGraphDefinition
 		rgd := generator.NewResourceGraphDefinition("test-recovery",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestRecovery", "v1alpha1",
 				map[string]interface{}{
@@ -81,8 +80,7 @@ var _ = Describe("Recovery", func() {
 		// Verify initial ResourceGraphDefinition becomes active
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
@@ -91,8 +89,7 @@ var _ = Describe("Recovery", func() {
 		// Update to invalid state with a cyclic dependency
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -127,8 +124,7 @@ var _ = Describe("Recovery", func() {
 		// Verify ResourceGraphDefinition becomes inactive
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateInactive))
@@ -137,8 +133,7 @@ var _ = Describe("Recovery", func() {
 		// Update to new valid state with different configuration
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -191,8 +186,7 @@ var _ = Describe("Recovery", func() {
 		// Verify ResourceGraphDefinition becomes active again
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(rgd.Status.State).To(Equal(krov1alpha1.ResourceGraphDefinitionStateActive))
@@ -248,8 +242,7 @@ var _ = Describe("Recovery", func() {
 		// Verify ResourceGraphDefinition is deleted
 		Eventually(func() bool {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, &krov1alpha1.ResourceGraphDefinition{})
 			return errors.IsNotFound(err)
 		}, 20*time.Second, time.Second).Should(BeTrue())

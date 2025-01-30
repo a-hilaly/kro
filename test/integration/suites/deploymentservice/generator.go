@@ -23,13 +23,12 @@ import (
 
 // deploymentService creates a ResourceGraphDefinition for testing deployment+service combinations
 func deploymentService(
-	namespace, name string,
+	name string,
 ) (
 	*krov1alpha1.ResourceGraphDefinition,
 	func(namespace, name string, port int) *unstructured.Unstructured,
 ) {
 	resourcegraphdefinition := generator.NewResourceGraphDefinition(name,
-		generator.WithNamespace(namespace),
 		generator.WithSchema(
 			"DeploymentService", "v1alpha1",
 			map[string]interface{}{
