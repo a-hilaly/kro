@@ -6,7 +6,7 @@ sidebar_position: 10
 
 ```yaml title="valkey-cachecluster.yaml"
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: valkey.kro.run
 spec:

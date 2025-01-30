@@ -4,7 +4,7 @@ sidebar_position: 15
 
 # Instances
 
-Once **kro** processes your ResourceGroup, it creates a new API in your cluster.
+Once **kro** processes your ResourceGraphDefinition, it creates a new API in your cluster.
 Users can then create instances of this API to deploy resources in a consistent,
 controlled way.
 
@@ -95,7 +95,7 @@ Every instance includes:
    - `Error`: Problems detected
 
 3. **Resource Status**: Status from your resources
-   - Values you defined in your ResourceGroup's status section
+   - Values you defined in your ResourceGraphDefinition's status section
    - Automatically updated as resources change
 
 ## Best Practices

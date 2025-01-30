@@ -2,15 +2,15 @@
 sidebar_position: 1
 ---
 
-# ResourceGroups
+# ResourceGraphDefinitions
 
-ResourceGroups are the fundamental building blocks in **kro**. They provide a
+ResourceGraphDefinitions are the fundamental building blocks in **kro**. They provide a
 way to define, organize, and manage sets of related Kubernetes resources as a
 single, reusable unit.
 
-## What is a ResourceGroup?
+## What is a ResourceGraphDefinition?
 
-A **ResourceGroup** is a custom resource that lets you create new Kubernetes
+A **ResourceGraphDefinition** is a custom resource that lets you create new Kubernetes
 APIs for deploying multiple resources together. It acts as a blueprint,
 defining:
 
@@ -20,19 +20,19 @@ defining:
 - When resources should be included (conditions)
 - What status to expose (status)
 
-When you create a **ResourceGroup**, kro generates a new API (a.k.a Custom
+When you create a **ResourceGraphDefinition**, kro generates a new API (a.k.a Custom
 Resource Defintion) in your cluster that others can use to deploy resources in a
 consistent, controlled way.
 
-## Anatomy of a ResourceGroup
+## Anatomy of a ResourceGraphDefinition
 
-A ResourceGroup, like any Kubernetes resource, consists of three main parts:
+A ResourceGraphDefinition, like any Kubernetes resource, consists of three main parts:
 
 1. **Metadata**: name, namespace, labels, etc.
-2. **Spec**: Defines the structure and properties of the ResourceGroup
-3. **Status**: Reflects the current state of the ResourceGroup
+2. **Spec**: Defines the structure and properties of the ResourceGraphDefinition
+3. **Status**: Reflects the current state of the ResourceGraphDefinition
 
-The `spec` section of a ResourceGroup contains two main components:
+The `spec` section of a ResourceGraphDefinition contains two main components:
 
 - **Schema**: Defines what an instance of your API looks like:
   - What users can configure during creation and update
@@ -48,9 +48,9 @@ This structure translates to YAML as follows:
 
 ```yaml
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
-  name: my-resourcegroup # Metadata section
+  name: my-resourcegraphdefinition # Metadata section
 spec:
   schema: # Define your API
     apiVersion: v1alpha1 # API version
@@ -101,19 +101,19 @@ leverages a human-friendly and readable syntax that is OpenAPI spec compatible.
 No need to write complex OpenAPI schemas - just define your fields and types in
 a straightforward way. For the complete specification of this format, check out
 the [Simple Schema specification](./10-simple-schema.md). Status fields use CEL
-expressions to reference fields from resources defined in your ResourceGroup.
+expressions to reference fields from resources defined in your ResourceGraphDefinition.
 kro automatically:
 
 - Infers the correct types from your expressions
 - Validates that referenced resources exist
 - Updates these fields as your resources change
 
-## ResourceGroup Processing
+## ResourceGraphDefinition Processing
 
-When you create a **ResourceGroup**, kro processes it in several steps to ensure
+When you create a **ResourceGraphDefinition**, kro processes it in several steps to ensure
 correctness and set up the necessary components:
 
-1. **Validation**: kro validates your **ResourceGroup** to ensure it's well
+1. **Validation**: kro validates your **ResourceGraphDefinition** to ensure it's well
    formed and follows the correct syntax, maximizing the chances of successful
    deployment, and catching as many errors as possible early on. It:
 
@@ -125,7 +125,7 @@ correctness and set up the necessary components:
    - Validates all CEL expressions in status fields and conditions
 
 2. **API Generation**: kro generates and registers a new CRD in your cluster
-   based on your schema. For example, if your **ResourceGroup** defines a
+   based on your schema. For example, if your **ResourceGraphDefinition** defines a
    `WebApplication` API, kro creates a CRD that:
 
    - Provides API validation based on your schema definition
@@ -141,17 +141,17 @@ correctness and set up the necessary components:
    - Handles the complete lifecycle for create, update, and delete operations
    - Keeps status information up to date based on actual resource states
 
-For instance, when you create a `WebApplication` ResourceGroup, kro generates
+For instance, when you create a `WebApplication` ResourceGraphDefinition, kro generates
 the `webapplications.kro.run` CRD. When users create instances of this API, kro
 manages all the underlying resources (Deployments, Services, Custom Resources,
 etc.) automatically.
 
-kro continuously monitors your ResourceGroup for changes, updating the API and
+kro continuously monitors your ResourceGraphDefinition for changes, updating the API and
 its behavior accordingly.
 
-## ResourceGroup Instance Example
+## ResourceGraphDefinition Instance Example
 
-After the **ResourceGroup** is validated and registered in the cluster, users
+After the **ResourceGraphDefinition** is validated and registered in the cluster, users
 can can create instances of it. Here's an example of how an instance for the
 `SimpleWebApp` might look:
 

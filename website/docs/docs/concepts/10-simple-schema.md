@@ -10,7 +10,7 @@ compatible. Here's a comprehensive example:
 
 ```yaml
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: web-application
 spec:

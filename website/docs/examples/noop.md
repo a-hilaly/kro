@@ -2,11 +2,11 @@
 sidebar_position: 5
 ---
 
-# Empty ResourceGroup
+# Empty ResourceGraphDefinition
 
 ```yaml title="noop.yaml"
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: kro.run/v1alpha1
 spec:
