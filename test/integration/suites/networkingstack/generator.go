@@ -22,13 +22,12 @@ import (
 )
 
 func networkingStack(
-	name, namespace string,
+	name string,
 ) (
 	*krov1alpha1.ResourceGraphDefinition,
 	func(namespace, name string) *unstructured.Unstructured,
 ) {
 	resourcegraphdefinition := generator.NewResourceGraphDefinition(name,
-		generator.WithNamespace(namespace),
 		generator.WithSchema(
 			"NetworkingStack", "v1alpha1",
 			map[string]interface{}{

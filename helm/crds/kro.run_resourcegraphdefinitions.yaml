@@ -14,7 +14,7 @@ spec:
     shortNames:
     - rgd
     singular: resourcegraphdefinition
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.schema.apiVersion

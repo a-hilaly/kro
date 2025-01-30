@@ -71,15 +71,14 @@ var _ = Describe("DeploymentService", func() {
 		Expect(env.Client.Create(ctx, ns)).To(Succeed())
 
 		// Create ResourceGraphDefinition
-		rgd, genInstance := deploymentService(namespace, "test-deployment-service")
+		rgd, genInstance := deploymentService("test-deployment-service")
 		Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 		// Verify ResourceGraphDefinition is created and becomes ready
 		createdRGD := &krov1alpha1.ResourceGraphDefinition{}
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, createdRGD)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -216,8 +215,7 @@ var _ = Describe("DeploymentService", func() {
 		// Verify ResourceGraphDefinition is deleted
 		Eventually(func() bool {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, &krov1alpha1.ResourceGraphDefinition{})
 			return errors.IsNotFound(err)
 		}, 20*time.Second, time.Second).Should(BeTrue())

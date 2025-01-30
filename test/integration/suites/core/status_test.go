@@ -48,7 +48,6 @@ var _ = Describe("Status", func() {
 
 	It("should have correct conditions when ResourceGraphDefinition is created", func() {
 		rgd := generator.NewResourceGraphDefinition("test-status",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestStatus", "v1alpha1",
 				map[string]interface{}{
@@ -70,8 +69,7 @@ var _ = Describe("Status", func() {
 		// Verify ResourceGraphDefinition status
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -88,7 +86,6 @@ var _ = Describe("Status", func() {
 
 	It("should reflect failure conditions when definition is invalid", func() {
 		rgd := generator.NewResourceGraphDefinition("test-status-fail",
-			generator.WithNamespace(namespace),
 			generator.WithSchema(
 				"TestStatusFail", "v1alpha1",
 				map[string]interface{}{
@@ -102,8 +99,7 @@ var _ = Describe("Status", func() {
 
 		Eventually(func(g Gomega) {
 			err := env.Client.Get(ctx, types.NamespacedName{
-				Name:      rgd.Name,
-				Namespace: namespace,
+				Name: rgd.Name,
 			}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 

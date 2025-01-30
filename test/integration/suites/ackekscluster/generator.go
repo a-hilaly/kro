@@ -28,7 +28,6 @@ func eksCluster(
 	func(namespace, name, version string) *unstructured.Unstructured,
 ) {
 	resourcegraphdefinition := generator.NewResourceGraphDefinition(name,
-		generator.WithNamespace(namespace),
 		generator.WithSchema(
 			"EKSCluster", "v1alpha1",
 			map[string]interface{}{
