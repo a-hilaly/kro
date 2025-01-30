@@ -28,13 +28,13 @@ This example creates a ResourceGraphDefinition called `GKECluster` to deploy a G
 Apply the RGD to your cluster:
 
 ```
-kubectl apply -f rg.yaml
+kubectl apply -f rgd.yaml
 ```
 
-Validate the RG:
+Validate the RGD:
 
 ```
-kubectl get rg
+kubectl get rgd
 ```
 
 ## Create an Instance of CloudSQL
