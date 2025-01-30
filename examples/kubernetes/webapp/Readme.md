@@ -5,13 +5,13 @@ the default nginx container image.
 
 ### Create ResourceGraphDefinition called WebApp
 
-Apply the RG to your cluster:
+Apply the RGD to your cluster:
 
 ```
 kubectl apply -f rg.yaml
 ```
 
-Validate the RG status is Active:
+Validate the RGD status is Active:
 
 ```
 kubectl get rgd webapp.kro.run

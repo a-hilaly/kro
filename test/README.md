@@ -48,14 +48,14 @@ controllers, you should:
 2. Trigger ResourceGraphDefinition reconciliation
 3. Check that the ResourceGraphDefinition status was updated correctly
 4. Verify that the correct Create (CRD) call was made to the API server
-5. Check that the controller is watching the correct RG instances
+5. Check that the controller is watching the correct RGD instances
 6. Create a ResourceGraphDefinition instance
 7. Trigger the ResourceGraphDefinition instance reconciliation
 8. Check that the ResourceGraphDefinition instance status was updated correctly
 9. Verify that the some resources were created in the cluster
 10. Trigger a second reconciliation and check that the status was updated
     correctly
-11. Repeat until all the RG instances are created
+11. Repeat until all the RGD instances are created
 12. Do the same for updates and deletions
 
 ## E2e tests

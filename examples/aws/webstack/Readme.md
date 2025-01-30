@@ -3,15 +3,17 @@
 This example creates a ResourceGraphDefinition called `WebStack` comprised of
 three other RGs: `WebApp`, `S3Bucket`, and `PodIdentity`
 
-![Netsted RG Instance](../../images/architecture-diagrams/kro-WebStack.png)
-_Fugure 1: Nested RG Example_
+![Netsted RGD Instance](../../images/architecture-diagrams/kro-WebStack.png)
+_Fugure 1: Nested RGD Example_
 
 ### Create ResourceGraphDefinitions
 
 Change directory to `examples`:
+
 ```
 cd examples/
 ```
+
 Apply the RGs to your cluster:
 
 ```
@@ -22,7 +24,7 @@ kubectl apply -f webstack/rg.yaml
 Validate the RGs statuses are Active:
 
 ```
-kubectl get rg
+kubectl get rgd
 ```
 
 Expected result:
@@ -36,24 +38,33 @@ webstack.kro.run      v1alpha1     WebStack      Active    7m
 ```
 
 ### Create an Instance of kind WebStack
+
 Create an environment variable with uniquie name, that will be the name of your S3 Bucket.
+
 ```
 export RESOURCES_NAME=<test-app-11223344-replace-me-with-random-string>
 ```
+
 Validate the variable populated:
+
 ```
 echo $RESOURCES_NAME
 ```
+
 Expected result:
+
 ```
 <test-app-11223344-my-random-string>
 ```
+
 Run the following command to replace the `$RESOURCES_NAME` variable in `instance-tmpl.yaml` file and create
-a new file called instance.yaml. 
+a new file called instance.yaml.
+
 ```shell
 envsubst < "webstack/instance-tmpl.yaml" > "webstack/instance.yaml"
 ```
-Apply the `webstack/instance.yaml` 
+
+Apply the `webstack/instance.yaml`
 
 ```
 kubectl apply -f webstack/instance.yaml
@@ -96,10 +107,13 @@ Expected result:
 ```
 
 ### Troubleshoot
+
 If you get the folling error:
+
 ```
 Error connecting to S3:...
 ```
+
 Try restarting the pod.
 
 ### Clean up
