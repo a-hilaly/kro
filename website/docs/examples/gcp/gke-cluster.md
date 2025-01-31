@@ -38,15 +38,15 @@ They can then check the status of the applied resource:
 
 ```
 kubectl get gkeclusters
-kubectl get gkeclusters krodemo -o yaml
+kubectl get gkeclusters krodemo -n config-connector -o yaml
 ```
 
 Navigate to GKE Cluster page in the GCP Console and verify the cluster creation.
 
-Once done, the user can delete the `GKECluster`:
+Once done, the user can delete the `GKECluster` instance:
 
 ```
-kubectl delete gkecluster $CLUSTER_NAME
+kubectl delete gkecluster krodemo -n config-connector
 ```
 
 ## Administrator: ResourceGraphDefinition

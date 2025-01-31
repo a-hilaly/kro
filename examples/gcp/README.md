@@ -78,6 +78,9 @@ gcloud services enable \
    gcloud iam service-accounts add-iam-policy-binding kcc-operator@${PROJECT_ID}.iam.gserviceaccount.com \
     --member="serviceAccount:${PROJECT_ID}.svc.id.goog[cnrm-system/cnrm-controller-manager]" \
     --role="roles/iam.workloadIdentityUser"
+   gcloud projects add-iam-policy-binding ${PROJECT_ID}\
+    --member="serviceAccount:kcc-operator@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/storage.admin"
    ```
    3. [Configure Config Connector](https://cloud.google.com/config-connector/docs/how-to/install-manually#addon-configuring)  
    ```
