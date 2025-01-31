@@ -142,12 +142,17 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 
 	// we'll also store the resources in a map for easy access later.
 	resources := make(map[string]*Resource)
-	for _, rgResource := range rgd.Spec.Resources {
-		r, err := b.buildRGResource(rgResource, namespacedResources)
+	for i, rgResource := range rgd.Spec.Resources {
+		id := rgResource.ID
+		order := i
+		r, err := b.buildRGResource(rgResource, namespacedResources, order)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build resource '%v': %v", rgResource.ID, err)
+			return nil, fmt.Errorf("failed to build resource %q: %w", id, err)
 		}
-		resources[rgResource.ID] = r
+		if resources[id] != nil {
+			return nil, fmt.Errorf("found resources with duplicate id %q", id)
+		}
+		resources[id] = r
 	}
 
 	// At this stage we have a superficial understanding of the resources that are
@@ -246,7 +251,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 // It provides a high-level understanding of the resource, by extracting the
 // OpenAPI schema, emualting the resource and extracting the cel expressions
 // from the schema.
-func (b *Builder) buildRGResource(rgResource *v1alpha1.Resource, namespacedResources map[k8sschema.GroupKind]bool) (*Resource, error) {
+func (b *Builder) buildRGResource(rgResource *v1alpha1.Resource, namespacedResources map[k8sschema.GroupKind]bool, order int) (*Resource, error) {
 	// 1. We need to unmashal the resource into a map[string]interface{} to
 	//    make it easier to work with.
 	resourceObject := map[string]interface{}{}
@@ -334,6 +339,7 @@ func (b *Builder) buildRGResource(rgResource *v1alpha1.Resource, namespacedResou
 		readyWhenExpressions:   readyWhen,
 		includeWhenExpressions: includeWhen,
 		namespaced:             isNamespaced,
+		order:                  order,
 	}, nil
 }
 
@@ -364,13 +370,13 @@ func (b *Builder) buildDependencyGraph(
 
 	directedAcyclicGraph := dag.NewDirectedAcyclicGraph()
 	// Set the vertices of the graph to be the resources defined in the resource graph definition.
-	for resourceName := range resources {
-		if err := directedAcyclicGraph.AddVertex(resourceName); err != nil {
+	for _, resource := range resources {
+		if err := directedAcyclicGraph.AddVertex(resource.id, resource.order); err != nil {
 			return nil, fmt.Errorf("failed to add vertex to graph: %w", err)
 		}
 	}
 
-	for resourceName, resource := range resources {
+	for _, resource := range resources {
 		for _, resourceVariable := range resource.variables {
 			for _, expression := range resourceVariable.Expressions {
 				// We need to inspect the expression to understand how it relates to the
@@ -397,10 +403,8 @@ func (b *Builder) buildDependencyGraph(
 				resource.addDependencies(resourceDependencies...)
 				resourceVariable.AddDependencies(resourceDependencies...)
 				// We need to add the dependencies to the graph.
-				for _, dependency := range resourceDependencies {
-					if err := directedAcyclicGraph.AddEdge(resourceName, dependency); err != nil {
-						return nil, err
-					}
+				if err := directedAcyclicGraph.AddDependencies(resource.id, resourceDependencies); err != nil {
+					return nil, err
 				}
 			}
 		}

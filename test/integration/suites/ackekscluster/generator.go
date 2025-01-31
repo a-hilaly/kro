@@ -43,8 +43,8 @@ func eksCluster(
 				"clusterARN": "${cluster.status.ackResourceMetadata.arn}",
 			},
 		),
+		generator.WithResource("clusterRole", clusterRoleDef(namespace), nil, nil),
 		generator.WithResource("clusterVPC", vpcDef(namespace), nil, nil),
-		generator.WithResource("clusterElasticIPAddress", eipDef(namespace), nil, nil),
 		generator.WithResource("clusterInternetGateway", igwDef(namespace), nil, nil),
 		generator.WithResource("clusterRouteTable", routeTableDef(namespace), nil, nil),
 		generator.WithResource(
@@ -55,11 +55,11 @@ func eksCluster(
 			"clusterSubnetB",
 			subnetDef(namespace, "kro-cluster-public-subnet2", "us-west-2b", "192.168.64.0/18"), nil, nil,
 		),
-		generator.WithResource("clusterNATGateway", natGatewayDef(namespace), nil, nil),
-		generator.WithResource("clusterRole", clusterRoleDef(namespace), nil, nil),
-		generator.WithResource("clusterNodeRole", nodeRoleDef(namespace), nil, nil),
-		generator.WithResource("clusterAdminRole", adminRoleDef(namespace), nil, nil),
 		generator.WithResource("cluster", clusterDef(namespace), nil, nil),
+		generator.WithResource("clusterAdminRole", adminRoleDef(namespace), nil, nil),
+		generator.WithResource("clusterElasticIPAddress", eipDef(namespace), nil, nil),
+		generator.WithResource("clusterNATGateway", natGatewayDef(namespace), nil, nil),
+		generator.WithResource("clusterNodeRole", nodeRoleDef(namespace), nil, nil),
 		generator.WithResource("clusterNodeGroup", nodeGroupDef(namespace), nil, nil),
 	)
 

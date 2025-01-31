@@ -70,6 +70,9 @@ type Resource struct {
 	// This is useful when initiating the dynamic client to interact with the
 	// resource.
 	namespaced bool
+	// order reflects the original order in which the resources were specified,
+	// and lets us keep the client-specified ordering where the dependencies allow.
+	order int
 }
 
 // GetDependencies returns the dependencies of the resource.
@@ -104,6 +107,11 @@ func (r *Resource) addDependencies(deps ...string) {
 // GetID returns the ID of the resource.
 func (r *Resource) GetID() string {
 	return r.id
+}
+
+// GetOrder returns the original Order of the resource.
+func (r *Resource) GetOrder() int {
+	return r.order
 }
 
 // GetGroupVersionKind returns the GVK of the resource.
@@ -160,6 +168,7 @@ func (r *Resource) IsNamespaced() bool {
 func (r *Resource) DeepCopy() *Resource {
 	return &Resource{
 		id:                     r.id,
+		order:                  r.order,
 		gvr:                    r.gvr,
 		schema:                 r.schema,
 		originalObject:         r.originalObject.DeepCopy(),

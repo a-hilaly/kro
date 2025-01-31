@@ -509,7 +509,7 @@ func TestGraphBuilder_DependencyValidation(t *testing.T) {
 				assert.Contains(t, clusterDeps, "subnet2")
 
 				// Validate topological order
-				assert.Equal(t, []string{"clusterpolicy", "clusterrole", "vpc", "subnet1", "subnet2", "cluster"}, g.TopologicalOrder)
+				assert.Equal(t, []string{"vpc", "clusterpolicy", "clusterrole", "subnet1", "subnet2", "cluster"}, g.TopologicalOrder)
 			},
 		},
 		{
@@ -571,7 +571,7 @@ func TestGraphBuilder_DependencyValidation(t *testing.T) {
 				}, nil, nil),
 			},
 			wantErr: true,
-			errMsg:  "This would create a cycle",
+			errMsg:  "graph contains a cycle",
 		},
 		{
 			name: "independent pods",
@@ -726,7 +726,7 @@ func TestGraphBuilder_DependencyValidation(t *testing.T) {
 				}, nil, nil),
 			},
 			wantErr: true,
-			errMsg:  "This would create a cycle",
+			errMsg:  "graph contains a cycle",
 		},
 		{
 			name: "shared infrastructure dependencies",
@@ -919,17 +919,17 @@ func TestGraphBuilder_DependencyValidation(t *testing.T) {
 
 				// Validate topological order
 				assert.Equal(t, []string{
-					"policy",
-					"role",
 					"vpc",
 					"subnet1",
 					"subnet2",
 					"subnet3",
+					"secgroup",
+					"policy",
+					"role",
 					"cluster1",
 					"cluster2",
 					"cluster3",
 					"monitor",
-					"secgroup",
 				}, g.TopologicalOrder)
 			},
 		},
