@@ -1,0 +1,10 @@
+{
+  "label": "Kubernetes Examples",
+  "position": 200,
+  "link": {
+    "type": "generated-index",
+    "description": "Examples of using Kro with Kubernetes"
+  },
+  "collapsible": true,
+  "collapsed": true
+} 
