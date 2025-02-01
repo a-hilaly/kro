@@ -270,7 +270,9 @@ func (igr *instanceGraphReconciler) updateResource(
 	igr.instanceSubResourcesLabeler.ApplyLabels(desired)
 
 	// Apply changes to the resource
+	// TODO: Handle annotations
 	desired.SetResourceVersion(observed.GetResourceVersion())
+	desired.SetFinalizers(observed.GetFinalizers())
 	_, err = rc.Update(ctx, desired, metav1.UpdateOptions{})
 	if err != nil {
 		resourceState.State = "ERROR"
