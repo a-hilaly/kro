@@ -54,6 +54,7 @@ var (
 		"resources",
 		"runtime",
 		"serviceAccountName",
+		"schema",
 		"spec",
 		"status",
 		"kro",
