@@ -1,4 +1,4 @@
-# kro | Kube Resource Orchestrator test
+# kro | Kube Resource Orchestrator
 
 This project aims to simplify the creation and management of complex custom resources for Kubernetes.
 
