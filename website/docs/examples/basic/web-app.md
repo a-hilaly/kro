@@ -10,14 +10,14 @@ kind: ResourceGraphDefinition
 metadata:
   name: deploymentservice
 spec:
-  apiVersion: v1alpha1
-  kind: DeploymentService
-  definition:
+  schema:
+    apiVersion: v1alpha1
+    kind: DeploymentService
     spec:
       name: string
   resources:
     - id: deployment
-      definition:
+      template:
         apiVersion: apps/v1
         kind: Deployment
         metadata:
@@ -38,7 +38,7 @@ spec:
                   ports:
                     - containerPort: 80
     - id: service
-      definition:
+      template:
         apiVersion: v1
         kind: Service
         metadata:

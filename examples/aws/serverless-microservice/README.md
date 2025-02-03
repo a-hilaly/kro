@@ -202,6 +202,7 @@ kubectl describe resourcegraphdefinition.kro.run/microservice.kro.run
 
 Expected result (resource definitions removed for brevity)
 
+<!-- TODO: update this example output to the latest schema -->
 ```
 Name:         microservice.kro.run
 Namespace:    default
