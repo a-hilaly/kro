@@ -33,7 +33,11 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.deployment.securityContext | nindent 12 }}
+          {{- if .Values.image.ko }}
+          image: "ko://github.com/kro-run/kro/cmd/controller"
+          {{- else }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          {{- end }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: metricsport
