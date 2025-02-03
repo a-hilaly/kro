@@ -9,7 +9,7 @@ image:
   # Image pull policy (IfNotPresent: pull the image only if it is not present locally)
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "0.2.0"
+  tag: "0.2.1"
 
 # List of secrets for pulling images from a private registry
 imagePullSecrets: []
