@@ -29,7 +29,7 @@ function HomepageHeader() {
             className="button button--secondary button--lg"
             to="https://github.com/kro-run/kro"
           >
-            Go to Github
+            Go to GitHub
           </Link>
         </div>
       </div>
