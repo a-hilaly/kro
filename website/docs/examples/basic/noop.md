@@ -8,11 +8,11 @@ sidebar_position: 101
 apiVersion: kro.run/v1alpha1
 kind: ResourceGraphDefinition
 metadata:
-  name: kro.run/v1alpha1
+  name: noop
 spec:
-  apiVersion: v1alpha1
-  kind: NoOp
-  definition:
+  schema:
+    apiVersion: v1alpha1
+    kind: NoOp
     spec:
       name: string | required=true
   resources: []
