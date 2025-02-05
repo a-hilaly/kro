@@ -3,6 +3,10 @@ nameOverride: ""
 # Override the full name of the chart
 fullnameOverride: ""
 
+# Additional labels that should be applied to all resources
+additionalLabels: {}
+  # app: kro
+
 image:
   # The location of the container image repository
   repository: ghcr.io/kro-run/kro/controller

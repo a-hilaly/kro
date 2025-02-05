@@ -3,8 +3,7 @@ kind: ClusterRoleBinding
 metadata:
   name: {{ include "kro.fullname" . }}-role-binding
   labels:
-    app: kro
-    release: {{ .Release.Name }}
+    {{- include "kro.labels" . | nindent 4 }}
 roleRef:
   kind: ClusterRole
   apiGroup: rbac.authorization.k8s.io
