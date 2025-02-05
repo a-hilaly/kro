@@ -68,15 +68,14 @@ func parseResource(resource interface{}, schema *spec.Schema, path string) ([]va
 }
 
 func getExpectedTypes(schema *spec.Schema) ([]string, error) {
+	// Handle "x-kubernetes-preserve-unknown-fields" extension first
+	if hasStructuralSchemaMarkerEnabled(schema, xKubernetesPreserveUnknownFields) {
+		return []string{schemaTypeAny}, nil
+	}
+
 	// Handle "x-kubernetes-int-or-string" extension
-	if ext, ok := schema.VendorExtensible.Extensions[xKubernetesIntOrString]; ok {
-		enabled, ok := ext.(bool)
-		if !ok {
-			return nil, fmt.Errorf("xKubernetesIntOrString extension is not a boolean")
-		}
-		if enabled {
-			return []string{"string", "integer"}, nil
-		}
+	if hasStructuralSchemaMarkerEnabled(schema, xKubernetesIntOrString) {
+		return []string{"string", "integer"}, nil
 	}
 
 	// Handle OneOf schemas
@@ -110,9 +109,10 @@ func getExpectedTypes(schema *spec.Schema) ([]string, error) {
 		return types, nil
 	}
 
-	if schema.Type[0] != "" {
+	if len(schema.Type) > 0 && schema.Type[0] != "" {
 		return schema.Type, nil
 	}
+
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.Allows {
 		// NOTE(a-hilaly): I don't like the type "any", we might want to change this to "object"
 		// in the future; just haven't really thought about it yet.
@@ -123,14 +123,15 @@ func getExpectedTypes(schema *spec.Schema) ([]string, error) {
 	return nil, fmt.Errorf("unknown schema type")
 }
 
-func sliceInclude(expectedTypes []string, expectedType string) bool {
-	return slices.Contains(expectedTypes, expectedType)
-}
-
 func validateSchema(schema *spec.Schema, path string) error {
 	if schema == nil {
 		return fmt.Errorf("schema is nil for path %s", path)
 	}
+
+	if hasStructuralSchemaMarkerEnabled(schema, xKubernetesPreserveUnknownFields) {
+		return nil
+	}
+
 	// Ensure the schema has at least one valid construct
 	if len(schema.Type) == 0 && len(schema.OneOf) == 0 && len(schema.AnyOf) == 0 && schema.AdditionalProperties == nil {
 		return fmt.Errorf("schema at path %s has no valid type, OneOf, AnyOf, or AdditionalProperties", path)
@@ -139,10 +140,6 @@ func validateSchema(schema *spec.Schema, path string) error {
 }
 
 func parseObject(field map[string]interface{}, schema *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {
-	if !sliceInclude(expectedTypes, "object") && (schema.AdditionalProperties == nil || !schema.AdditionalProperties.Allows) {
-		return nil, fmt.Errorf("expected object type or AdditionalProperties allowed for path %s, got %v", path, field)
-	}
-
 	// Look for vendor schema extensions first
 	if len(schema.VendorExtensible.Extensions) > 0 {
 		// If the schema has the x-kubernetes-preserve-unknown-fields extension, we need to parse
@@ -150,13 +147,17 @@ func parseObject(field map[string]interface{}, schema *spec.Schema, path string,
 		// fields that don't have a strict schema definition, while still preserving any unknown
 		// fields. This is particularly important for handling custom resources and fields that
 		// may contain arbitrary nested structures with potential CEL expressions.
-		if enabled, ok := schema.VendorExtensible.Extensions[xKubernetesPreserveUnknownFields]; ok && enabled.(bool) {
+		if hasStructuralSchemaMarkerEnabled(schema, xKubernetesPreserveUnknownFields) {
 			expressions, err := parseSchemalessResource(field, path)
 			if err != nil {
 				return nil, err
 			}
 			return expressions, nil
 		}
+	}
+
+	if !slices.Contains(expectedTypes, "object") && (schema.AdditionalProperties == nil || !schema.AdditionalProperties.Allows) {
+		return nil, fmt.Errorf("expected object type or AdditionalProperties allowed for path %s, got %v", path, field)
 	}
 
 	var expressionsFields []variable.FieldDescriptor
@@ -176,7 +177,7 @@ func parseObject(field map[string]interface{}, schema *spec.Schema, path string,
 }
 
 func parseArray(field []interface{}, schema *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {
-	if !sliceInclude(expectedTypes, "array") {
+	if !slices.Contains(expectedTypes, "array") {
 		return nil, fmt.Errorf("expected array type for path %s, got %v", path, field)
 	}
 
@@ -213,7 +214,7 @@ func parseString(field string, schema *spec.Schema, path string, expectedTypes [
 		}}, nil
 	}
 
-	if !sliceInclude(expectedTypes, "string") && !sliceInclude(expectedTypes, schemaTypeAny) {
+	if !slices.Contains(expectedTypes, "string") && !slices.Contains(expectedTypes, schemaTypeAny) {
 		return nil, fmt.Errorf("expected string type or AdditionalProperties for path %s, got %v", path, field)
 	}
 
@@ -234,15 +235,15 @@ func parseString(field string, schema *spec.Schema, path string, expectedTypes [
 func parseScalarTypes(field interface{}, _ *spec.Schema, path string, expectedTypes []string) ([]variable.FieldDescriptor, error) {
 	// perform type checks for scalar types
 	switch {
-	case sliceInclude(expectedTypes, "number"):
+	case slices.Contains(expectedTypes, "number"):
 		if _, ok := field.(float64); !ok {
 			return nil, fmt.Errorf("expected number type for path %s, got %T", path, field)
 		}
-	case sliceInclude(expectedTypes, "int"), sliceInclude(expectedTypes, "integer"):
+	case slices.Contains(expectedTypes, "int"), slices.Contains(expectedTypes, "integer"):
 		if !isInteger(field) {
 			return nil, fmt.Errorf("expected integer type for path %s, got %T", path, field)
 		}
-	case sliceInclude(expectedTypes, "boolean"), sliceInclude(expectedTypes, "bool"):
+	case slices.Contains(expectedTypes, "boolean"), slices.Contains(expectedTypes, "bool"):
 		if _, ok := field.(bool); !ok {
 			return nil, fmt.Errorf("expected boolean type for path %s, got %T", path, field)
 		}
@@ -305,4 +306,14 @@ func joinPathAndFieldName(path, fieldName string) string {
 		return fieldName
 	}
 	return fmt.Sprintf("%s.%s", path, fieldName)
+}
+
+// hasStructuralSchemaMarkerEnabled checks if a schema has a specific marker enabled.
+func hasStructuralSchemaMarkerEnabled(schema *spec.Schema, marker string) bool {
+	if ext, ok := schema.VendorExtensible.Extensions[marker]; ok {
+		if enabled, ok := ext.(bool); ok && enabled {
+			return true
+		}
+	}
+	return false
 }
