@@ -18,6 +18,8 @@ Dockerfile.cross
 
 !vendor/**/zz_generated.*
 
+rendered/
+
 # editor and IDE paraphernalia
 .idea
 .vscode

@@ -40,6 +40,13 @@ GitHub provides additional document on [forking a repository](https://help.githu
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
 
 ## Setting Up a Local Development Environment
+
+By following the steps for [externally running a controller](#running-the-controller-external-to-the-cluster) or 
+[running the controller inside a `KinD` cluster](#running-the-controller-inside-a-kind-cluster-with-ko), you can set up 
+a local environment to test your contributions before submitting a pull request.
+
+### Running the controller external to the cluster
+
 To test and run the project with your local changes, follow these steps to set up a development environment:
 
 1. Install Dependencies: Ensure you have the necessary dependencies installed, including:
@@ -64,7 +71,93 @@ To test and run the project with your local changes, follow these steps to set u
     ```
     This will connect to the default Kubernetes context in your local kubeconfig (`~/.kube/config`). Ensure the context is pointing to your local cluster.
 
-By following these steps, you can setup a local environment to test your contributions before submitting a pull request.
+### Running the controller inside a [`KinD`][kind] cluster with [`ko`][ko]
+
+[ko]: https://ko.build
+[kind]: https://kind.sigs.k8s.io/
+
+1. Create a `KinD` cluster.
+
+   ```sh
+   kind create cluster
+   ```
+
+2. Create the `kro-system` namespace.
+
+   ```sh
+   kubectl create namespace kro-system
+   ```
+
+3. Set the `KO_DOCKER_REPO` env var.
+
+   ```sh
+   export KO_DOCKER_REPO=kind.local
+   ```
+
+   > _Note_, if not using the default kind cluster name, set KIND_CLUSTER_NAME
+
+   ```sh
+   export KIND_CLUSTER_NAME=my-other-cluster
+   ```
+4. Apply the Kro CRDs.
+
+   ```sh
+   make manifests
+   kubectl apply -f ./helm/crds
+   ```
+
+5. Render and apply the local helm chart.
+
+   ```sh
+    helm template kro ./helm \
+      --namespace kro-system \
+      --set image.pullPolicy=Never \
+      --set image.ko=true | ko apply -f -
+    ```
+
+### Dev Environment Hello World
+
+1. Create a `NoOp` ResourceGraph using the `ResourceGraphDefinition`.
+
+   ```sh
+   kubectl apply -f - <<EOF
+   apiVersion: kro.run/v1alpha1
+   kind: ResourceGraphDefinition
+   metadata:
+     name: noop
+   spec:
+     schema:
+       apiVersion: v1alpha1
+       kind: NoOp
+       spec: {}
+       status: {}
+     resources: []
+   EOF
+   ```
+
+   Inspect that the `ResourceGraphDefinition` was created, and also the newly created CRD `NoOp`.
+
+   ```sh
+   kubectl get ResourceGraphDefinition noop
+   kubectl get crds | grep noops
+   ```
+
+3. Create an instance of the new `NoOp` kind.
+
+   ```sh
+   kubectl apply -f - <<EOF
+   apiVersion: kro.run/v1alpha1
+   kind: NoOp
+   metadata:
+     name: demo
+   EOF
+   ```
+
+   And inspect the new instance,
+
+   ```shell
+   kubectl get noops -oyaml
+   ```
 
 ## Finding contributions to work on
 Looking at the existing issues is a great way to find something to contribute on. As our projects, by default, use the default GitHub issue labels (enhancement/bug/duplicate/help wanted/invalid/question/wontfix), looking at any 'help wanted' issues is a great place to start.
