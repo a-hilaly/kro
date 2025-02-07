@@ -1286,3 +1286,212 @@ func TestOneOfWithStructuralConstraints(t *testing.T) {
 		}
 	})
 }
+
+func TestPreserveUnknownFields(t *testing.T) {
+	testCases := []struct {
+		name                string
+		schema              *spec.Schema
+		resource            map[string]interface{}
+		wantErr             bool
+		expectedError       string
+		expectedExpressions []variable.FieldDescriptor
+	}{
+		{
+			name: "schema with no type but x-kubernetes-preserve-unknown-fields",
+			schema: &spec.Schema{
+				VendorExtensible: spec.VendorExtensible{
+					Extensions: spec.Extensions{
+						"x-kubernetes-preserve-unknown-fields": true,
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"template": "${template.value}",
+				},
+			},
+			wantErr: false,
+			expectedExpressions: []variable.FieldDescriptor{
+				{
+					Path:                 "spec.template",
+					Expressions:          []string{"template.value"},
+					ExpectedTypes:        []string{"any"},
+					StandaloneExpression: true,
+				},
+			},
+		},
+		{
+			name: "schema with no type but x-kubernetes-preserve-unknown-fields, expression in nested object",
+			schema: &spec.Schema{
+				VendorExtensible: spec.VendorExtensible{
+					Extensions: spec.Extensions{
+						"x-kubernetes-preserve-unknown-fields": true,
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"field1": "noisy string",
+					"template": map[string]interface{}{
+						"nested": []interface{}{
+							map[string]interface{}{
+								"key": "${template.value}",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			expectedExpressions: []variable.FieldDescriptor{
+				{
+					Path:                 "spec.template.nested[0].key",
+					Expressions:          []string{"template.value"},
+					ExpectedTypes:        []string{"any"},
+					StandaloneExpression: true,
+				},
+			},
+		},
+		{
+			name: "pulumi-style mixed schema",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"object"},
+					Properties: map[string]spec.Schema{
+						"program": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"object"},
+								Properties: map[string]spec.Schema{
+									"resources": {
+										SchemaProps: spec.SchemaProps{
+											Type: []string{"object"},
+											AdditionalProperties: &spec.SchemaOrBool{
+												Allows: true,
+												Schema: &spec.Schema{
+													SchemaProps: spec.SchemaProps{
+														Type: []string{"object"},
+														Properties: map[string]spec.Schema{
+															"properties": {
+																VendorExtensible: spec.VendorExtensible{
+																	Extensions: spec.Extensions{
+																		"x-kubernetes-preserve-unknown-fields": true,
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			resource: map[string]interface{}{
+				"program": map[string]interface{}{
+					"resources": map[string]interface{}{
+						"app": map[string]interface{}{
+							"properties": map[string]interface{}{
+								"spec": map[string]interface{}{
+									"name":   "${schema.spec.name}",
+									"region": "${schema.spec.region}",
+									"services": []interface{}{
+										map[string]interface{}{
+											"name":          "${schema.spec.name}-service",
+											"instanceCount": "${schema.spec.instanceCount}",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			expectedExpressions: []variable.FieldDescriptor{
+				{
+					Path:                 "program.resources.app.properties.spec.name",
+					Expressions:          []string{"schema.spec.name"},
+					ExpectedTypes:        []string{"any"},
+					StandaloneExpression: true,
+				},
+				{
+					Path:                 "program.resources.app.properties.spec.region",
+					Expressions:          []string{"schema.spec.region"},
+					ExpectedTypes:        []string{"any"},
+					StandaloneExpression: true,
+				},
+				{
+					Path:                 "program.resources.app.properties.spec.services[0].name",
+					Expressions:          []string{"schema.spec.name"},
+					ExpectedTypes:        []string{"any"},
+					StandaloneExpression: false,
+				},
+				{
+					Path:                 "program.resources.app.properties.spec.services[0].instanceCount",
+					Expressions:          []string{"schema.spec.instanceCount"},
+					ExpectedTypes:        []string{"any"},
+					StandaloneExpression: true,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expressions, err := ParseResource(tc.resource, tc.schema)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if tc.expectedError != "" && err.Error() != tc.expectedError {
+					t.Errorf("Expected error message %q, got %q", tc.expectedError, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Did not expect error but got: %v", err)
+					return
+				}
+
+				if len(expressions) != len(tc.expectedExpressions) {
+					t.Errorf("Expected %d expressions, got %d", len(tc.expectedExpressions), len(expressions))
+					t.Errorf("Got expressions:")
+					for _, expr := range expressions {
+						t.Errorf("  %+v", expr)
+					}
+					return
+				}
+
+				// Create maps for easier comparison
+				actualMap := make(map[string]variable.FieldDescriptor)
+				expectedMap := make(map[string]variable.FieldDescriptor)
+
+				for _, expr := range expressions {
+					actualMap[expr.Path] = expr
+				}
+				for _, expr := range tc.expectedExpressions {
+					expectedMap[expr.Path] = expr
+				}
+
+				for path, expectedExpr := range expectedMap {
+					actualExpr, ok := actualMap[path]
+					if !ok {
+						t.Errorf("Missing expected expression for path %s", path)
+						continue
+					}
+
+					if !reflect.DeepEqual(actualExpr.Expressions, expectedExpr.Expressions) {
+						t.Errorf("Path %s: expected expressions %v, got %v", path, expectedExpr.Expressions, actualExpr.Expressions)
+					}
+					if !reflect.DeepEqual(actualExpr.ExpectedTypes, expectedExpr.ExpectedTypes) {
+						t.Errorf("Path %s: expected types %v, got %v", path, expectedExpr.ExpectedTypes, actualExpr.ExpectedTypes)
+					}
+					if actualExpr.StandaloneExpression != expectedExpr.StandaloneExpression {
+						t.Errorf("Path %s: expected StandaloneExpression %v, got %v", path, expectedExpr.StandaloneExpression, actualExpr.StandaloneExpression)
+					}
+				}
+			}
+		})
+	}
+}

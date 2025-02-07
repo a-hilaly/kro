@@ -10,11 +10,10 @@ kind: ResourceGraphDefinition
 metadata:
   name: deploymentandawspostgres
 spec:
-  apiVersion: v1alpha1
-  kind: DeploymentAndAWSPostgres
-
   # CRD Definition
-  definition:
+  schema:
+    apiVersion: v1alpha1
+    kind: DeploymentAndAWSPostgres
     spec:
       applicationName: string
       image: string
@@ -23,7 +22,7 @@ spec:
   # Resources
   resources:
     - id: dbinstance
-      definition:
+      template:
         apiVersion: rds.services.k8s.aws/v1alpha1
         kind: DBInstance
         metadata:
@@ -36,7 +35,7 @@ spec:
           dbInstanceClass: db.t3.micro
 
     - id: pod
-      definition:
+      template:
         apiVersion: v1
         kind: Pod
         metadata:

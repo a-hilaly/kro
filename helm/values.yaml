@@ -3,13 +3,19 @@ nameOverride: ""
 # Override the full name of the chart
 fullnameOverride: ""
 
+# Additional labels that should be applied to all resources
+additionalLabels: {}
+  # app: kro
+
 image:
   # The location of the container image repository
   repository: ghcr.io/kro-run/kro/controller
-  # Image pull policy (IfNotPresent: pull the image only if it is not present locally)
-  pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "0.2.1"
+  # Ignores the repository and tag settings and uses the controllers ko entrypoint.
+  ko: false
+  # Image pull policy (IfNotPresent: pull the image only if it is not present locally)
+  pullPolicy: IfNotPresent
 
 # List of secrets for pulling images from a private registry
 imagePullSecrets: []
@@ -97,3 +103,25 @@ metrics:
     type: "ClusterIP"
     # Port for the metrics service
     port: 8080
+  serviceMonitor:
+    # -- Whether to create a ServiceMonitor
+    enabled: false
+    # -- Set of labels to transfer from the Kubernetes Service onto the target
+    additionalLabels: {}
+    # -- Set how frequently Prometheus should scrape
+    interval: 1m
+    # -- Set timeout for scrape
+    scrapeTimeout: 10s
+    # -- Set path to metrics path
+    telemetryPath: /metrics
+    # -- Set of labels to transfer from the Kubernetes Service onto the target
+    targetLabels: []
+    # -- MetricRelabelConfigs to apply to samples before ingestion
+    metricRelabelings: []
+    # - action: replace
+    #   replacement: my-cluster
+    #   targetLabel: cluster
+    relabelings: []
+    # - action: replace
+    #   replacement: my-cluster
+    #   targetLabel: cluster
