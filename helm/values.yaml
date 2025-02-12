@@ -35,7 +35,7 @@ deployment:
   # Number of replicas for the Pods to run
   replicaCount: 1
   # Port that the container will expose
-  containerPort: 8080
+  containerPort: 8078
   # Annotations to add to the Pod
   podAnnotations: {}
   # Labels to add to the Pod
