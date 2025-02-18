@@ -46,6 +46,13 @@ helm install kro oci://ghcr.io/kro-run/kro/kro \
   --version=${KRO_VERSION}
 ```
 
+:::info[**Troubleshooting Helm Install**]
+Note that authentication is not required for pulling charts from public GHCR (GitHub Container Registry) repositories.
+
+Helm install download failures occur due to expired local credentials. To resolve this issue, clear your local credentials cache by running `helm registry logout ghcr.io` in your terminal, then retry the installation.
+
+:::
+
 ## Verifying the Installation
 
 After running the installation command, verify that Kro has been installed
