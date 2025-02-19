@@ -76,11 +76,13 @@ Please join our community meeting.
 * Every other Wednesday at 9AM PT (Pacific Time). [Convert to local timezone][tz-help] 
 * Agenda: [Public doc][agenda]
 * Join us: [Zoom meeting][zoom]
+* Community meeting recordings:  [YouTube channel][youtube]
 
 
 [tz-help]: http://www.thetimezoneconverter.com/?t=9%3A00&tz=PT%20%28Pacific%20Time%29
 [agenda]: https://docs.google.com/document/d/1GqeHcBlOw6ozo-qS4TLdXSi5qUn88QU6dwdq0GvxRz4/edit?tab=t.0
 [zoom]: https://us06web.zoom.us/j/85388697226?pwd=9Xxz1F0FcNUq8zFGrsRqkHMhFZTpuj.1
+[youtube]: https://www.youtube.com/channel/UCUlcI3NYq9ehl5wsdfbJzSA
 
 ## Security
 
