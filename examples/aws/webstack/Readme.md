@@ -3,8 +3,8 @@
 This example creates a ResourceGraphDefinition called `WebStack` comprised of
 three other RGs: `WebApp`, `S3Bucket`, and `PodIdentity`
 
-![Netsted RGD Instance](../../images/architecture-diagrams/kro-WebStack.png)
-_Fugure 1: Nested RGD Example_
+![Netsted RGD Instance](../../../images/architecture-diagrams/kro-WebStack.png)
+_Figure 1: Nested RGD Example_
 
 ### Create ResourceGraphDefinitions
 
@@ -17,8 +17,8 @@ cd examples/
 Apply the RGs to your cluster:
 
 ```
-kubectl apply -f podidenity/rg.yaml -f s3bucket/rg.yaml -f webapp/rg.yaml
-kubectl apply -f webstack/rg.yaml
+kubectl apply -f aws/podidenity/rg.yaml -f aws/s3bucket/rg.yaml -f kubernetes/webapp/rg.yaml
+kubectl apply -f aws/webstack/rg.yaml
 ```
 
 Validate the RGs statuses are Active:
