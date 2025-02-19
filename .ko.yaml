@@ -1,6 +1,4 @@
-# gently copied from https://github.com/aws/karpenter-provider-aws/blob/main/.ko.yaml
-
-defaultBaseImage: public.ecr.aws/eks-distro-build-tooling/eks-distro-minimal-base
+defaultBaseImage: gcr.io/distroless/static
 defaultPlatforms:
   - linux/arm64
   - linux/amd64
