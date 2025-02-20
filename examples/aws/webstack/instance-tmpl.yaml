@@ -4,6 +4,7 @@ metadata:
   name: test-app
 spec:
   name: $RESOURCES_NAME
+  clusterName: kro # change this value if your cluster name is not kro
   image: candonov/s3-demo-app
   s3bucket:
     enabled: true
