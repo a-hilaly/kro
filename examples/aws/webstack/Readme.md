@@ -63,6 +63,23 @@ a new file called instance.yaml.
 ```shell
 envsubst < "webstack/instance-tmpl.yaml" > "webstack/instance.yaml"
 ```
+`clusterName` is a required field to achieve pod identity association. If your cluster name is not 'kro' then replace the value assigned to this field in the `webstack/instance.yaml` file with the name of your cluter. 
+
+<pre>
+apiVersion: kro.run/v1alpha1
+kind: WebStack
+metadata:
+  name: test-app
+spec:
+  name: my-test-app-name
+  <mark>clusterName:</mark> kro # change this value if your cluster name is not kro
+  image: candonov/s3-demo-app
+  s3bucket:
+    enabled: true
+    access: write
+  ingress:
+    enabled: true # this will expose unathenticated alb
+  service: {}`</pre>
 
 Apply the `webstack/instance.yaml`
 
