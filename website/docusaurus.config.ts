@@ -129,6 +129,10 @@ const config: Config = {
               label: "Tutorial",
               to: "/docs/overview",
             },
+            {
+              label: "Examples",
+              to: "/examples/",
+            },
           ],
         },
         {
@@ -138,6 +142,14 @@ const config: Config = {
               label: "Slack",
               href: "https://kubernetes.slack.com/archives/C081TMY9D6Y",
             },
+            {
+              label: "Zoom",
+              href: "https://us06web.zoom.us/j/85388697226?pwd=9Xxz1F0FcNUq8zFGrsRqkHMhFZTpuj.1",
+            },
+            {
+              label: "Agenda",
+              href: "https://docs.google.com/document/d/1GqeHcBlOw6ozo-qS4TLdXSi5qUn88QU6dwdq0GvxRz4/edit?tab=t.0#heading=h.ukbaidczvy3r",
+            }
           ],
         },
         {
@@ -146,6 +158,10 @@ const config: Config = {
             {
               label: "GitHub",
               href: "https://github.com/kro-run/kro",
+            },
+            {
+              label: "YouTube",
+              href: "https://www.youtube.com/channel/UCUlcI3NYq9ehl5wsdfbJzSA",
             },
           ],
         },
