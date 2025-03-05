@@ -1495,3 +1495,83 @@ func TestPreserveUnknownFields(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectTypesFromSubSchemas(t *testing.T) {
+	testCases := []struct {
+		name       string
+		subSchemas []spec.Schema
+		wantTypes  []string
+	}{
+		{
+			name: "simple types without constraints",
+			subSchemas: []spec.Schema{
+				{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+				{SchemaProps: spec.SchemaProps{Type: []string{"integer"}}},
+			},
+			wantTypes: []string{"string", "integer"},
+		},
+		{
+			name: "with Required constraint",
+			subSchemas: []spec.Schema{
+				{SchemaProps: spec.SchemaProps{
+					Type:     []string{"string"},
+					Required: []string{"field"},
+				}},
+			},
+			wantTypes: []string{"object", "string"},
+		},
+		{
+			name: "with Not constraint",
+			subSchemas: []spec.Schema{
+				{SchemaProps: spec.SchemaProps{
+					Type: []string{"string"},
+					Not: &spec.Schema{
+						SchemaProps: spec.SchemaProps{Type: []string{"integer"}},
+					},
+				}},
+			},
+			wantTypes: []string{"object", "string"},
+		},
+		{
+			name: "with both Required and Not constraints",
+			subSchemas: []spec.Schema{
+				{SchemaProps: spec.SchemaProps{
+					Type:     []string{"string"},
+					Required: []string{"field"},
+					Not: &spec.Schema{
+						SchemaProps: spec.SchemaProps{Type: []string{"integer"}},
+					},
+				}},
+			},
+			wantTypes: []string{"object", "string"},
+		},
+		{
+			name: "duplicate types",
+			subSchemas: []spec.Schema{
+				{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+				{SchemaProps: spec.SchemaProps{Type: []string{"string"}}},
+				{SchemaProps: spec.SchemaProps{
+					Type:     []string{"string"},
+					Required: []string{"field"},
+				}},
+			},
+			wantTypes: []string{"object", "string"},
+		},
+		{
+			name: "empty type",
+			subSchemas: []spec.Schema{
+				{SchemaProps: spec.SchemaProps{Type: []string{""}}},
+			},
+			wantTypes: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotTypes := collectTypesFromSubSchemas(tc.subSchemas)
+			if !areEqualSlices(gotTypes, tc.wantTypes) {
+				t.Errorf("collectTypesFromSubSchemas() = %v, want %v", gotTypes, tc.wantTypes)
+			}
+		})
+	}
+}
