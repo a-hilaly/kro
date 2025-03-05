@@ -15,6 +15,7 @@ package simpleschema
 
 import (
 	"fmt"
+	"strconv"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
@@ -203,6 +204,14 @@ func (tf *transformer) applyMarkers(schema *extv1.JSONSchemaProps, markers []*Ma
 			schema.Default = &extv1.JSON{Raw: defaultValue}
 		case MarkerTypeDescription:
 			schema.Description = marker.Value
+		case MarkerTypeMinimum:
+			if val, err := strconv.ParseFloat(marker.Value, 64); err == nil {
+				schema.Minimum = &val
+			}
+		case MarkerTypeMaximum:
+			if val, err := strconv.ParseFloat(marker.Value, 64); err == nil {
+				schema.Maximum = &val
+			}
 		}
 	}
 }
