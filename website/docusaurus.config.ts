@@ -143,13 +143,9 @@ const config: Config = {
               href: "https://kubernetes.slack.com/archives/C081TMY9D6Y",
             },
             {
-              label: "Zoom",
-              href: "https://us06web.zoom.us/j/85388697226?pwd=9Xxz1F0FcNUq8zFGrsRqkHMhFZTpuj.1",
+              label: "Contribution Guide",
+              href: "https://github.com/kro-run/kro/blob/main/CONTRIBUTING.md",
             },
-            {
-              label: "Agenda",
-              href: "https://docs.google.com/document/d/1GqeHcBlOw6ozo-qS4TLdXSi5qUn88QU6dwdq0GvxRz4/edit?tab=t.0#heading=h.ukbaidczvy3r",
-            }
           ],
         },
         {
