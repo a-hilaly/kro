@@ -22,39 +22,39 @@ import (
 )
 
 const (
-	// LabelKro is the label key used to identify Kro owned resources.
-	LabelKroPrefix = v1alpha1.KroDomainName + "/"
+	// LabelKROPrefix is the label key prefix used to identify KRO owned resources.
+	LabelKROPrefix = v1alpha1.KRODomainName + "/"
 )
 
 const (
-	NodeIDLabel = LabelKroPrefix + "node-id"
+	NodeIDLabel = LabelKROPrefix + "node-id"
 
-	OwnedLabel      = LabelKroPrefix + "owned"
-	KroVersionLabel = LabelKroPrefix + "kro-version"
+	OwnedLabel      = LabelKROPrefix + "owned"
+	KROVersionLabel = LabelKROPrefix + "kro-version"
 
-	InstanceIDLabel        = LabelKroPrefix + "instance-id"
-	InstanceLabel          = LabelKroPrefix + "instance-name"
-	InstanceNamespaceLabel = LabelKroPrefix + "instance-namespace"
+	InstanceIDLabel        = LabelKROPrefix + "instance-id"
+	InstanceLabel          = LabelKROPrefix + "instance-name"
+	InstanceNamespaceLabel = LabelKROPrefix + "instance-namespace"
 
-	ResourceGraphDefinitionIDLabel        = LabelKroPrefix + "resource-graph-definition-id"
-	ResourceGraphDefinitionNameLabel      = LabelKroPrefix + "resource-graph-definition-name"
-	ResourceGraphDefinitionNamespaceLabel = LabelKroPrefix + "resource-graph-definition-namespace"
-	ResourceGraphDefinitionVersionLabel   = LabelKroPrefix + "resource-graph-definition-version"
+	ResourceGraphDefinitionIDLabel        = LabelKROPrefix + "resource-graph-definition-id"
+	ResourceGraphDefinitionNameLabel      = LabelKROPrefix + "resource-graph-definition-name"
+	ResourceGraphDefinitionNamespaceLabel = LabelKROPrefix + "resource-graph-definition-namespace"
+	ResourceGraphDefinitionVersionLabel   = LabelKROPrefix + "resource-graph-definition-version"
 )
 
-// IsKroOwned returns true if the resource is owned by Kro.
-func IsKroOwned(meta metav1.ObjectMeta) bool {
+// IsKROOwned returns true if the resource is owned by KRO.
+func IsKROOwned(meta metav1.ObjectMeta) bool {
 	v, ok := meta.Labels[OwnedLabel]
 	return ok && booleanFromString(v)
 }
 
-// SetKroOwned sets the OwnedLabel to true on the resource.
-func SetKroOwned(meta metav1.ObjectMeta) {
+// SetKROOwned sets the OwnedLabel to true on the resource.
+func SetKROOwned(meta metav1.ObjectMeta) {
 	setLabel(&meta, OwnedLabel, stringFromBoolean(true))
 }
 
-// SetKroUnowned sets the OwnedLabel to false on the resource.
-func SetKroUnowned(meta metav1.ObjectMeta) {
+// SetKROUnowned sets the OwnedLabel to false on the resource.
+func SetKROUnowned(meta metav1.ObjectMeta) {
 	setLabel(&meta, OwnedLabel, stringFromBoolean(false))
 }
 
@@ -130,14 +130,14 @@ func NewInstanceLabeler(instanceMeta metav1.Object) GenericLabeler {
 	}
 }
 
-// NewKroMetaLabeler returns a new labeler that sets the OwnedLabel and
-// KroVersion labels on a resource.
-func NewKroMetaLabeler(
+// NewKROMetaLabeler returns a new labeler that sets the OwnedLabel and
+// KROVersion labels on a resource.
+func NewKROMetaLabeler(
 	kroVersion string,
 ) GenericLabeler {
 	return map[string]string{
 		OwnedLabel:      "true",
-		KroVersionLabel: kroVersion,
+		KROVersionLabel: kroVersion,
 	}
 }
 

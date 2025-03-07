@@ -30,19 +30,19 @@ func (m *mockObject) GetObjectMeta() metav1.Object {
 	return m
 }
 
-func TestIsKroOwned(t *testing.T) {
+func TestIsKROOwned(t *testing.T) {
 	cases := []struct {
 		name     string
 		labels   map[string]string
 		expected bool
 	}{
 		{
-			name:     "owned by Kro",
+			name:     "owned by kro",
 			labels:   map[string]string{OwnedLabel: "true"},
 			expected: true,
 		},
 		{
-			name:     "not owned by Kro",
+			name:     "not owned by kro",
 			labels:   map[string]string{OwnedLabel: "false"},
 			expected: false,
 		},
@@ -56,13 +56,13 @@ func TestIsKroOwned(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			meta := metav1.ObjectMeta{Labels: tc.labels}
-			result := IsKroOwned(meta)
+			result := IsKROOwned(meta)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
 
-func TestSetKroOwned(t *testing.T) {
+func TestSetKROOwned(t *testing.T) {
 	cases := []struct {
 		name          string
 		initialLabels map[string]string
@@ -83,13 +83,13 @@ func TestSetKroOwned(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			meta := metav1.ObjectMeta{Labels: tc.initialLabels}
-			SetKroOwned(meta)
+			SetKROOwned(meta)
 			assert.Equal(t, tc.expected, meta.Labels)
 		})
 	}
 }
 
-func TestSetKroUnowned(t *testing.T) {
+func TestSetKROUnowned(t *testing.T) {
 	cases := []struct {
 		name          string
 		initialLabels map[string]string
@@ -110,7 +110,7 @@ func TestSetKroUnowned(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			meta := metav1.ObjectMeta{Labels: tc.initialLabels}
-			SetKroUnowned(meta)
+			SetKROUnowned(meta)
 			assert.Equal(t, tc.expected, meta.Labels)
 		})
 	}
