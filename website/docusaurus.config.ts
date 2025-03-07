@@ -32,7 +32,23 @@ const config: Config = {
     defaultLocale: "en",
     locales: ["en"],
   },
-
+  headTags: [
+    {
+      tagName: "meta",
+      attributes: {
+        name: "go-import",
+        content: "kro.run/pkg git https://github.com/kro-run/kro",
+      },
+    },
+    {
+      tagName: "meta",
+      attributes: {
+        name: "go-source",
+        content: "kro.run/pkg git https://github.com/kro-run/kro https://github.com/kro-run/kro/tree/main{/dir} https://github.com/kro-run/kro/blob/main{/dir}/{file}#L{line}",
+      },
+    },
+  ],
+  
   presets: [
     [
       "classic",
