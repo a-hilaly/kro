@@ -31,6 +31,9 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
+rbac:
+  legacy: true
+
 deployment:
   # Number of replicas for the Pods to run
   replicaCount: 1
