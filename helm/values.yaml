@@ -32,7 +32,16 @@ serviceAccount:
   name: ""
 
 rbac:
-  legacy: true
+  # Specifies how to manage access for kro in the cluster
+  # Two modes are currently supported:
+  # - unrestricted: Grants cluster-wide full access to all resources
+  # - aggregation: Grants a minimal set of permissions for kro to manage its own
+  #                resources, and additionally aggregates ClusterRoles with the
+  #                label `rbac.kro.run/aggregate-to-controller: "true"` to allow
+  #                kro users to extend kro's permissions.
+  # Recommended setting is aggregation, but unrestricted remains the default for
+  # backwards compatibility.
+  mode: unrestricted
 
 deployment:
   # Number of replicas for the Pods to run
