@@ -4,12 +4,12 @@ metadata:
   annotations:
     kubernetes.io/description: |
 {{- if .Values.rbac.legacy }}
-      This ClusterRole grants cluster-wide admin access for the Kro controller.
+      This ClusterRole grants cluster-wide admin access for the kro controller.
 {{- else }}
-      This ClusterRole grants access for the Kro controller.
+      This ClusterRole grants access for the kro controller.
 
-      The Kro installation comes with enough for the controller to run, and start watching the relevant resources
-      (e.g. ResourceGraphDefinitions), but in order to allow Kro to create and manage other types of resoruces you
+      The kro installation comes with enough for the controller to run, and start watching the relevant resources
+      (e.g. ResourceGraphDefinitions), but in order to allow kro to create and manage other types of resoruces you
       must manually grant access to those separately.
 
       The easiest way to accomplish this is to create a new ClusterRole with the label `rbac.kro.run/aggregate-to-controller: "true"`
@@ -37,7 +37,7 @@ kind: ClusterRole
 metadata:
   annotations:
     kubernetes.io/description: |
-      This ClusterRole grants access for the Kro controller to resources it always needs access to.
+      This ClusterRole grants access for the kro controller to resources it always needs access to.
   labels:
     {{- include "kro.labels" . | nindent 4 }}
     rbac.kro.run/aggregate-to-controller: "true"
