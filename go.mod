@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/go-logr/logr v1.4.2
 	github.com/gobuffalo/flect v1.0.2
-	github.com/google/cel-go v0.22.0
+	github.com/google/cel-go v0.24.1
 	github.com/onsi/ginkgo/v2 v2.20.0
 	github.com/onsi/gomega v1.34.1
 	github.com/prometheus/client_golang v1.19.1
@@ -25,7 +25,7 @@ require (
 )
 
 require (
-	cel.dev/expr v0.18.0 // indirect
+	cel.dev/expr v0.19.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
