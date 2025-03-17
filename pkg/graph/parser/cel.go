@@ -24,7 +24,8 @@ const (
 	exprEnd   = "}"
 )
 
-var ErrNestedExpression = errors.New("nested expressions are not allowed")
+// Allow nested expressions, but only if they are escaped with quotes ${outer("${inner}")} is allowed, but ${outer(${inner})} is not
+var ErrNestedExpression = errors.New("nested expressions are not allowed unless inside string literals")
 
 // extractExpressions extracts all non-nested CEL expressions from a string.
 // It returns an error if it encounters a nested expression.
