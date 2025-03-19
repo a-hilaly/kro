@@ -4,7 +4,7 @@
 
 <!-- template begins here-->
 
-This governance document explains how the Kube Resource Orchestratory project is run.
+This governance document explains how the Kube Resource Orchestrator project is run.
 
 - [Kube Resource Orchestrator Project Governance](#kube-resource-orchestrator-project-governance)
   - [Values](#values)
