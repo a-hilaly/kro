@@ -13,6 +13,9 @@
 package client
 
 import (
+	"fmt"
+
+	"github.com/kro-run/kro/pkg"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -62,7 +65,7 @@ func NewSet(cfg Config) (*Set, error) {
 	if config.Burst == 0 {
 		config.Burst = cfg.Burst
 	}
-	config.UserAgent = "kro/0.2.1"
+	config.UserAgent = fmt.Sprintf("kro/%s", pkg.Version)
 
 	c := &Set{config: config}
 	if err := c.init(); err != nil {
