@@ -17,10 +17,10 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/maps"
 )
 
 // Vertex represents a node/vertex in a directed acyclic graph.
@@ -37,7 +37,7 @@ type Vertex[T cmp.Ordered] struct {
 func (v Vertex[T]) String() string {
 	var builder strings.Builder
 	builder.Grow(len(v.DependsOn))
-	for i, s := range maps.Keys(v.DependsOn) {
+	for i, s := range slices.Collect(maps.Keys(v.DependsOn)) {
 		builder.WriteString(fmt.Sprintf("%v", s))
 		if i < len(v.DependsOn)-1 {
 			builder.WriteString(",")
