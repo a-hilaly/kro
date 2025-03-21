@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"slices"
 
-	cel "github.com/google/cel-go/cel"
+	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types/ref"
 	"golang.org/x/exp/maps"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -354,7 +354,7 @@ func (b *Builder) buildDependencyGraph(
 	resources map[string]*Resource,
 ) (
 	// directed acyclic graph
-	*dag.DirectedAcyclicGraph,
+	*dag.DirectedAcyclicGraph[string],
 	// map of runtime variables per resource
 	error,
 ) {
@@ -368,7 +368,7 @@ func (b *Builder) buildDependencyGraph(
 		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
 	}
 
-	directedAcyclicGraph := dag.NewDirectedAcyclicGraph()
+	directedAcyclicGraph := dag.NewDirectedAcyclicGraph[string]()
 	// Set the vertices of the graph to be the resources defined in the resource graph definition.
 	for _, resource := range resources {
 		if err := directedAcyclicGraph.AddVertex(resource.id, resource.order); err != nil {
