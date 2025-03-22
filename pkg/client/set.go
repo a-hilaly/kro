@@ -15,12 +15,13 @@ package client
 import (
 	"fmt"
 
-	"github.com/kro-run/kro/pkg"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	ctrlrtconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	"github.com/kro-run/kro/pkg"
 )
 
 // Set provides a unified interface for different Kubernetes clients
