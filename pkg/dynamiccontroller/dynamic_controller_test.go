@@ -14,7 +14,7 @@ package dynamiccontroller
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"testing"
 	"time"
 
@@ -37,7 +37,7 @@ import (
 func noopLogger() logr.Logger {
 	opts := zap.Options{
 		// Write to dev/null
-		DestWriter: ioutil.Discard,
+		DestWriter: io.Discard,
 	}
 	logger := zap.New(zap.UseFlagOptions(&opts))
 	return logger
