@@ -219,6 +219,17 @@ func (tf *transformer) applyMarkers(schema *extv1.JSONSchemaProps, markers []*Ma
 				return fmt.Errorf("failed to parse maximum enum value: %w", err)
 			}
 			schema.Maximum = &val
+		case MarkerTypeValidation:
+			if marker.Value == "" {
+				return fmt.Errorf("validation failed")
+			}
+			validation := []extv1.ValidationRule{
+				{
+					Rule:    marker.Value,
+					Message: "validation failed",
+				},
+			}
+			schema.XValidations = validation
 		case MarkerTypeEnum:
 			var enumJSONValues []extv1.JSON
 
