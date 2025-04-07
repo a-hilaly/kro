@@ -360,6 +360,66 @@ func TestBuildOpenAPISchema(t *testing.T) {
 			want:    nil,
 			wantErr: true,
 		},
+		{
+			name: "Simple string validation",
+			obj: map[string]interface{}{
+				"name": `string | validation="self.name != 'invalid'"`,
+			},
+			want: &extv1.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]extv1.JSONSchemaProps{
+					"name": {
+						Type: "string",
+						XValidations: []extv1.ValidationRule{
+							{
+								Rule:    "self.name != 'invalid'",
+								Message: "validation failed",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Multiple field validations",
+			obj: map[string]interface{}{
+				"age":  `integer | validation="self.age >= 0 && self.age <= 120"`,
+				"name": `string | validation="self.name.length() >= 3"`,
+			},
+			want: &extv1.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]extv1.JSONSchemaProps{
+					"age": {
+						Type: "integer",
+						XValidations: []extv1.ValidationRule{
+							{
+								Rule:    "self.age >= 0 && self.age <= 120",
+								Message: "validation failed",
+							},
+						},
+					},
+					"name": {
+						Type: "string",
+						XValidations: []extv1.ValidationRule{
+							{
+								Rule:    "self.name.length() >= 3",
+								Message: "validation failed",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Empty validation",
+			obj: map[string]interface{}{
+				"age": `integer | validation=""`,
+			},
+			want:    nil,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
