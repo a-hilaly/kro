@@ -14,7 +14,10 @@ package dynamiccontroller
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -151,4 +154,60 @@ func TestEnqueueObject(t *testing.T) {
 	dc.enqueueObject(obj, "add")
 
 	assert.Equal(t, 1, dc.queue.Len())
+}
+
+func TestInstanceUpdatePolicy(t *testing.T) {
+	logger := noopLogger()
+
+	scheme := runtime.NewScheme()
+	gvr := schema.GroupVersionResource{Group: "test", Version: "v1", Resource: "tests"}
+	gvk := schema.GroupVersionKind{Group: "test", Version: "v1", Kind: "Test"}
+
+	objs := make(map[string]runtime.Object)
+
+	obj1 := &unstructured.Unstructured{}
+	obj1.SetGroupVersionKind(gvk)
+	obj1.SetNamespace("default")
+	obj1.SetName("test-object-1")
+	objs[obj1.GetNamespace()+"/"+obj1.GetName()] = obj1
+
+	obj2 := &unstructured.Unstructured{}
+	obj2.SetGroupVersionKind(gvk)
+	obj2.SetNamespace("test-namespace")
+	obj2.SetName("test-object-2")
+	objs[obj2.GetNamespace()+"/"+obj2.GetName()] = obj2
+
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(scheme, map[schema.GroupVersionResource]string{
+		gvr: "TestList",
+	}, slices.Collect(maps.Values(objs))...)
+
+	dc := NewDynamicController(logger, Config{}, client)
+
+	handlerFunc := Handler(func(ctx context.Context, req controllerruntime.Request) error {
+		fmt.Println("reconciling instance", req)
+		return nil
+	})
+
+	// simulate initial creation of the resource graph
+	err := dc.StartServingGVK(context.Background(), gvr, handlerFunc)
+	assert.NoError(t, err)
+
+	// simulate reconciling the instances
+	for dc.queue.Len() > 0 {
+		item, _ := dc.queue.Get()
+		dc.queue.Done(item)
+		dc.queue.Forget(item)
+	}
+
+	// simulate updating the resource graph
+	err = dc.StartServingGVK(context.Background(), gvr, handlerFunc)
+	assert.NoError(t, err)
+
+	// check if the expected objects are queued
+	assert.Equal(t, dc.queue.Len(), 2)
+	for dc.queue.Len() > 0 {
+		name, _ := dc.queue.Get()
+		_, ok := objs[name.NamespacedKey]
+		assert.True(t, ok)
+	}
 }
