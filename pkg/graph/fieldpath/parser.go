@@ -73,8 +73,7 @@ func (p *parser) parse() ([]Segment, error) {
 				return nil, err
 			}
 			segments = append(segments, Segment{Name: field, Index: -1})
-
-		} else if p.pos+1 < p.len && p.input[p.pos] != '[' {
+		} else if p.pos < p.len && p.input[p.pos] != '[' {
 			// Parse unquoted field until we hit a [ or .
 			field, err := p.parseUnquotedField()
 			if err != nil {

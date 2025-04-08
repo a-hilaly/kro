@@ -26,6 +26,14 @@ func TestParse(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "simple single letter path",
+			path: "data.A",
+			want: []Segment{
+				{Name: "data", Index: -1},
+				{Name: "A", Index: -1},
+			},
+		},
+		{
 			name: "simple path",
 			path: "spec.containers",
 			want: []Segment{
