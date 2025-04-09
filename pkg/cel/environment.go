@@ -17,6 +17,7 @@ package cel
 import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/ext"
+	"github.com/kro-run/kro/pkg/cel/library"
 )
 
 // EnvOption is a function that modifies the environment options.
@@ -49,34 +50,19 @@ func WithCustomDeclarations(declarations []cel.EnvOption) EnvOption {
 
 // DefaultEnvironment returns the default CEL environment.
 func DefaultEnvironment(options ...EnvOption) (*cel.Env, error) {
-	// Create declarations slice with default stdlibs only
 	declarations := []cel.EnvOption{
 		ext.Lists(),
 		ext.Strings(),
+		library.RandomString(),
 	}
 
-	// Initialize options
 	opts := &envOptions{}
-
-	// Add default options
-	defaultOptions := []EnvOption{
-		WithRandomStringFunction(),
-	}
-
-	// Apply default options first
-	for _, opt := range defaultOptions {
-		opt(opts)
-	}
-
-	// Apply user-provided options
 	for _, opt := range options {
 		opt(opts)
 	}
 
-	// Add custom declarations to the environment
 	declarations = append(declarations, opts.customDeclarations...)
 
-	// Add resource ID declarations
 	for _, name := range opts.resourceIDs {
 		declarations = append(declarations, cel.Variable(name, cel.AnyType))
 	}
