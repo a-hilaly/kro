@@ -17,6 +17,7 @@ package cel
 import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/ext"
+
 	"github.com/kro-run/kro/pkg/cel/library"
 )
 
@@ -53,7 +54,7 @@ func DefaultEnvironment(options ...EnvOption) (*cel.Env, error) {
 	declarations := []cel.EnvOption{
 		ext.Lists(),
 		ext.Strings(),
-		library.RandomString(),
+		library.Random(),
 	}
 
 	opts := &envOptions{}
