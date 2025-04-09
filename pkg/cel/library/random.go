@@ -21,8 +21,17 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 )
 
-// RandomString returns a CEL function that generates deterministic random strings
-// based on a seed.
+const (
+	// alphanumericChars contains all possible characters for the random string
+	alphanumericChars = "0123456789abcdefghijklmnopqrstuvwxyz"
+)
+
+// Random returns a CEL library that provides functions to generate random text
+//
+// Library functions:
+//
+// random.seededString() returns a CEL function that generates deterministic random
+// strings based on a seed.
 //
 // The function takes two arguments:
 // - length: an integer specifying the length of the random string to generate
@@ -30,43 +39,66 @@ import (
 //
 // Example usage:
 //
-//	randomString(10, schema.spec.name)
+//	random.seededString(10, schema.metadata.uid)
 //
-// This will generate a random string of length 10 using the seed schema.spec.name.
+// This will generate a random string of length 10 using the seed schema.metadata.uid.
 // The same length and seed will always produce the same random string.
-
-const (
-	// alphanumericChars contains all possible characters for the random string
-	alphanumericChars = "0123456789abcdefghijklmnopqrstuvwxyz"
-)
-
-// RandomString returns a CEL function that generates deterministic random strings
-func RandomString() cel.EnvOption {
-	return cel.Function("randomString",
-		cel.Overload("randomString_int_string",
-			[]*cel.Type{cel.IntType, cel.StringType},
-			cel.StringType,
-			cel.BinaryBinding(generateDeterministicString),
-		),
-	)
+func Random() cel.EnvOption {
+	return cel.Lib(&randomLibrary{})
 }
 
-// generateDeterministicString creates a deterministic random string based on a seed
+type randomLibrary struct{}
+
+func (l *randomLibrary) LibraryName() string {
+	return "random"
+}
+
+func (l *randomLibrary) CompileOptions() []cel.EnvOption {
+	return []cel.EnvOption{
+		cel.Function("random.seededString",
+			cel.Overload("random.seededString_int_string",
+				[]*cel.Type{cel.IntType, cel.StringType},
+				cel.StringType,
+				cel.BinaryBinding(generateDeterministicString),
+			),
+		),
+	}
+}
+
+func (l *randomLibrary) ProgramOptions() []cel.ProgramOption {
+	return nil
+}
+
 func generateDeterministicString(length ref.Val, seed ref.Val) ref.Val {
+	// Validate length is an integer
+	if length.Type() != types.IntType {
+		return types.NewErr("random.seededString length must be an integer")
+	}
+
+	// Validate length is positive
+	if length.(types.Int) <= 0 {
+		return types.NewErr("random.seededString length must be positive")
+	}
+
+	// Validate seed is a string
+	if seed.Type() != types.StringType {
+		return types.NewErr("random.seededString seed must be a string")
+	}
+
 	// Validate length
 	lengthInt, ok := length.(types.Int)
 	if !ok {
-		return types.NewErr("randomString length must be an integer")
+		return types.NewErr("random.seededString length must be an integer")
 	}
 	n := int(lengthInt.Value().(int64))
 	if n <= 0 {
-		return types.NewErr("randomString length must be positive")
+		return types.NewErr("random.seededString length must be positive")
 	}
 
 	// Validate seed
 	seedStr, ok := seed.(types.String)
 	if !ok {
-		return types.NewErr("randomString seed must be a string")
+		return types.NewErr("random.seededString seed must be a string")
 	}
 
 	// Generate hash from seed
@@ -84,7 +116,6 @@ func generateDeterministicString(length ref.Val, seed ref.Val) ref.Val {
 			newHash := sha256.Sum256(append(hash[:], result[:i]...))
 			hash = newHash
 			start = 0
-			end = 4
 		}
 		// Convert 4 bytes to a uint32 and use it to select a character
 		idx := uint32(hash[start])<<24 | uint32(hash[start+1])<<16 | uint32(hash[start+2])<<8 | uint32(hash[start+3])
