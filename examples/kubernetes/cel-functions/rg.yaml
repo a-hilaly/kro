@@ -42,7 +42,7 @@ spec:
                     - name: DNS_PARTIALS
                       value: ${schema.spec.fullDNSName.split('.').slice(0, 1).join('.')}
                     - name: RANDOM_STRING
-                      value: ${randomString(10)}
+                      value: ${randomString(10, schema.spec.name)}
     - id: service
       template:
         apiVersion: v1

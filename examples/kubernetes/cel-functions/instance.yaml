@@ -3,5 +3,5 @@ kind: Something
 metadata:
   name: my-instance-will-cel-functions
 spec:
-  name: app3
+  name: app
   # fullDNSName: "abc.def.agb.example.com"
