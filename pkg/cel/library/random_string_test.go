@@ -14,77 +14,123 @@
 package library
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRandomString(t *testing.T) {
-	// Create a new CEL environment with just the RandomString function
-	env, err := cel.NewEnv(RandomString())
-	if err != nil {
-		t.Fatalf("Failed to create CEL environment: %v", err)
-	}
+	env, err := cel.NewEnv(
+		cel.Variable("schema", cel.AnyType),
+		RandomString(),
+	)
+	require.NoError(t, err)
 
-	testCases := []struct {
-		name   string
-		expr   string
-		length int
+	tests := []struct {
+		name     string
+		expr     string
+		length   int
+		seed     string
+		wantErr  bool
+		errMsg   string
+		validate func(*testing.T, string)
 	}{
 		{
-			name:   "generate 10 character string",
-			expr:   `randomString(10)`,
+			name:   "generate 10-character string",
+			expr:   "randomString(10, 'test-seed')",
 			length: 10,
+			seed:   "test-seed",
+			validate: func(t *testing.T, result string) {
+				assert.Len(t, result, 10)
+				for _, c := range result {
+					assert.Contains(t, alphanumericChars, string(c), "Invalid character in random string")
+				}
+			},
 		},
 		{
-			name:   "generate 20 character string",
-			expr:   `randomString(20)`,
+			name:   "generate 20-character string",
+			expr:   "randomString(20, 'test-seed')",
 			length: 20,
+			seed:   "test-seed",
+			validate: func(t *testing.T, result string) {
+				assert.Len(t, result, 20)
+				for _, c := range result {
+					assert.Contains(t, alphanumericChars, string(c), "Invalid character in random string")
+				}
+			},
+		},
+		{
+			name:    "negative length",
+			expr:    "randomString(-1, 'test-seed')",
+			length:  -1,
+			seed:    "test-seed",
+			wantErr: true,
+			errMsg:  "randomString length must be positive",
+		},
+		{
+			name:    "zero length",
+			expr:    "randomString(0, 'test-seed')",
+			length:  0,
+			seed:    "test-seed",
+			wantErr: true,
+			errMsg:  "randomString length must be positive",
+		},
+		{
+			name:    "invalid length type",
+			expr:    "randomString('10', 'test-seed')",
+			wantErr: true,
+			errMsg:  "found no matching overload",
+		},
+		{
+			name:    "invalid seed type",
+			expr:    "randomString(10, 123)",
+			wantErr: true,
+			errMsg:  "found no matching overload",
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Test that we can compile and evaluate the randomString function
-			ast, issues := env.Compile(tc.expr)
-			if issues != nil && issues.Err() != nil {
-				t.Fatalf("Failed to compile expression: %v", issues.Err())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ast, issues := env.Compile(tt.expr)
+			if tt.wantErr && issues != nil {
+				assert.Contains(t, issues.String(), tt.errMsg)
+				return
 			}
+			require.NoError(t, issues.Err())
 
-			prg, err := env.Program(ast)
-			if err != nil {
-				t.Fatalf("Failed to create program: %v", err)
+			program, err := env.Program(ast)
+			require.NoError(t, err)
+
+			out, _, err := program.Eval(map[string]interface{}{})
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+				return
 			}
+			require.NoError(t, err)
 
-			// Run the function multiple times to verify we get different results
-			results := make(map[string]bool)
-			for i := 0; i < 10; i++ {
-				result, _, err := prg.Eval(map[string]interface{}{})
-				if err != nil {
-					t.Fatalf("Failed to evaluate expression: %v", err)
-				}
+			result, ok := out.Value().(string)
+			require.True(t, ok)
+			tt.validate(t, result)
 
-				// Get the string value from the CEL result
-				str := result.(types.String).Value().(string)
+			// Test determinism by running the same expression again
+			out2, _, err := program.Eval(map[string]interface{}{})
+			require.NoError(t, err)
+			result2, ok := out2.Value().(string)
+			require.True(t, ok)
+			assert.Equal(t, result, result2, "Random string should be deterministic")
 
-				// Verify length
-				if len(str) != tc.length {
-					t.Errorf("Expected string length of %d, got %d", tc.length, len(str))
-				}
-
-				// Verify character set
-				for _, c := range str {
-					if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z')) {
-						t.Errorf("Invalid character in random string: %c", c)
-					}
-				}
-
-				// Verify uniqueness
-				if results[str] {
-					t.Error("Got duplicate random string")
-				}
-				results[str] = true
+			// Test different seeds produce different strings
+			if tt.seed != "" {
+				ast2, _ := env.Compile(fmt.Sprintf("randomString(%d, 'different-seed')", tt.length))
+				program2, _ := env.Program(ast2)
+				out3, _, _ := program2.Eval(map[string]interface{}{})
+				result3 := out3.Value().(string)
+				assert.NotEqual(t, result, result3, "Different seeds should produce different strings")
 			}
 		})
 	}
@@ -92,9 +138,7 @@ func TestRandomString(t *testing.T) {
 
 func TestRandomStringErrors(t *testing.T) {
 	env, err := cel.NewEnv(RandomString())
-	if err != nil {
-		t.Fatalf("Failed to create CEL environment: %v", err)
-	}
+	require.NoError(t, err)
 
 	testCases := []struct {
 		name    string
@@ -103,13 +147,18 @@ func TestRandomStringErrors(t *testing.T) {
 	}{
 		{
 			name:    "negative length",
-			expr:    "randomString(-1)",
+			expr:    "randomString(-1, 'test-seed')",
 			wantErr: "randomString length must be positive",
 		},
 		{
 			name:    "zero length",
-			expr:    "randomString(0)",
+			expr:    "randomString(0, 'test-seed')",
 			wantErr: "randomString length must be positive",
+		},
+		{
+			name:    "missing seed argument",
+			expr:    "randomString(10)",
+			wantErr: "found no matching overload",
 		},
 	}
 
@@ -117,20 +166,19 @@ func TestRandomStringErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ast, issues := env.Compile(tc.expr)
 			if issues != nil && issues.Err() != nil {
-				t.Fatalf("Failed to compile expression: %v", issues.Err())
+				assert.Contains(t, issues.String(), tc.wantErr)
+				return
 			}
 
 			prg, err := env.Program(ast)
-			if err != nil {
-				t.Fatalf("Failed to create program: %v", err)
-			}
+			require.NoError(t, err)
 
 			result, _, err := prg.Eval(map[string]interface{}{})
 			if err == nil {
 				t.Error("Expected error, got none")
 			}
-			if errVal, ok := result.(*types.Err); !ok || errVal.Error() != tc.wantErr {
-				t.Errorf("Expected error %q, got %v", tc.wantErr, result)
+			if errVal, ok := result.(*types.Err); !ok || !assert.Contains(t, errVal.Error(), tc.wantErr) {
+				t.Errorf("Expected error containing %q, got %v", tc.wantErr, result)
 			}
 		})
 	}
