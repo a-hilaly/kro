@@ -106,8 +106,8 @@ func main() {
 		"Burst size of events for the dynamic controller rate limiter.")
 
 	// reconciler parameters
-	flag.IntVar(&resyncPeriod, "dynamic-controller-default-resync-period", 10,
-		"interval at which the controller will re list resources even with no changes, in hours")
+	flag.IntVar(&resyncPeriod, "dynamic-controller-default-resync-period", 36000,
+		"interval at which the controller will re list resources even with no changes, in seconds")
 	flag.IntVar(&queueMaxRetries, "dynamic-controller-default-queue-max-retries", 20,
 		"maximum number of retries for an item in the queue will be retried before being dropped")
 	flag.IntVar(&shutdownTimeout, "dynamic-controller-default-shutdown-timeout", 60,
@@ -167,10 +167,9 @@ func main() {
 	}
 
 	dc := dynamiccontroller.NewDynamicController(rootLogger, dynamiccontroller.Config{
-		Workers: dynamicControllerConcurrentReconciles,
-		// TODO(a-hilaly): expose these as flags
+		Workers:         dynamicControllerConcurrentReconciles,
 		ShutdownTimeout: time.Duration(shutdownTimeout) * time.Second,
-		ResyncPeriod:    time.Duration(resyncPeriod) * time.Hour,
+		ResyncPeriod:    time.Duration(resyncPeriod) * time.Second,
 		QueueMaxRetries: queueMaxRetries,
 		MinRetryDelay:   minRetryDelay,
 		MaxRetryDelay:   maxRetryDelay,
