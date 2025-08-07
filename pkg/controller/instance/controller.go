@@ -16,6 +16,7 @@ package instance
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -127,6 +129,10 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) error {
 	// runtime object in it's fields.
 	rgRuntime, err := c.rgd.NewGraphRuntime(instance)
 	if err != nil {
+		// Mark graph resolution failure and update status before returning error
+		mark := NewConditionsMarkerFor(instance)
+		mark.GraphNotResolved("failed to create runtime resource graph definition: %v", err)
+		c.updateInstanceStatusOnError(ctx, instance)
 		return fmt.Errorf("failed to create runtime resource graph definition: %w", err)
 	}
 
