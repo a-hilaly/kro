@@ -31,11 +31,11 @@ const config: Config = {
   url: "https://kro.run",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/",
+  baseUrl: "/kro",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "kubernetes-sigs", // Usually your GitHub org/user name.
+  organizationName: "a-hilaly", // Usually your GitHub org/user name.
   projectName: "kro", // Usually your repo name.
 
   onBrokenLinks: "throw",

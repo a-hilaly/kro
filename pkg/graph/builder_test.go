@@ -500,6 +500,29 @@ func TestGraphBuilder_Validation(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "invalid externalRef with forEach",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"Test", "v1alpha1",
+					map[string]interface{}{
+						"items": "[]string",
+					},
+					nil,
+				),
+				generator.WithExternalRefAndForEach("vpcs", &krov1alpha1.ExternalRef{
+					APIVersion: "ec2.services.k8s.aws/v1alpha1",
+					Kind:       "VPC",
+					Metadata: krov1alpha1.ExternalRefMetadata{
+						Name: "external-vpc",
+					},
+				}, []krov1alpha1.ForEachDimension{
+					{"value": "${schema.spec.items}"},
+				}),
+			},
+			wantErr: true,
+			errMsg:  "cannot use both externalRef and forEach",
+		},
 	}
 
 	for _, tt := range tests {
@@ -2155,6 +2178,357 @@ func TestGraphBuilder_StructuralTypeCompatibility(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGraphBuilder_ForEachParsing(t *testing.T) {
+	fakeResolver, fakeDiscovery := k8s.NewFakeResolver()
+	restMapper := restmapper.NewDeferredDiscoveryRESTMapper(memory2.NewMemCacheClient(fakeDiscovery))
+	builder := &Builder{
+		schemaResolver: fakeResolver,
+		restMapper:     restMapper,
+	}
+
+	tests := []struct {
+		name                        string
+		resourceGraphDefinitionOpts []generator.ResourceGraphDefinitionOption
+		wantErr                     bool
+		errMsg                      string
+		validateGraph               func(t *testing.T, graph *Graph)
+	}{
+		{
+			name: "valid forEach with single iterator from schema",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"WorkerPool", "v1alpha1",
+					map[string]interface{}{
+						"workers": "[]string",
+					},
+					nil,
+				),
+				generator.WithResourceCollection("workerPods", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "worker",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "worker",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				},
+					[]krov1alpha1.ForEachDimension{
+						{"name": "${schema.spec.workers}"},
+					},
+					nil, nil),
+			},
+			wantErr: false,
+			validateGraph: func(t *testing.T, graph *Graph) {
+				resource := graph.Resources["workerPods"]
+				require.NotNil(t, resource)
+				iterators := resource.GetForEachDimensions()
+				require.Len(t, iterators, 1)
+				assert.Equal(t, "name", iterators[0].Name)
+				assert.Equal(t, "schema.spec.workers", iterators[0].Expression)
+			},
+		},
+		{
+			name: "valid forEach with multiple iterators (cartesian product)",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"MultiRegion", "v1alpha1",
+					map[string]interface{}{
+						"regions": "[]string",
+						"tiers":   "[]string",
+					},
+					nil,
+				),
+				generator.WithResourceCollection("pods", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "multi-region-pod",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "app",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				},
+					[]krov1alpha1.ForEachDimension{
+						{"region": "${schema.spec.regions}"},
+						{"tier": "${schema.spec.tiers}"},
+					},
+					nil, nil),
+			},
+			wantErr: false,
+			validateGraph: func(t *testing.T, graph *Graph) {
+				resource := graph.Resources["pods"]
+				require.NotNil(t, resource)
+				iterators := resource.GetForEachDimensions()
+				require.Len(t, iterators, 2)
+				assert.Equal(t, "region", iterators[0].Name)
+				assert.Equal(t, "tier", iterators[1].Name)
+			},
+		},
+		{
+			name: "forEach with collection chaining (depends on another resource)",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"WorkerPool", "v1alpha1",
+					map[string]interface{}{
+						"workers": "[]string",
+					},
+					nil,
+				),
+				generator.WithResourceCollection("workerPods", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "worker",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "worker",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				},
+					[]krov1alpha1.ForEachDimension{
+						{"worker": "${schema.spec.workers}"},
+					},
+					nil, nil),
+				// monitorPod depends on workerPods collection
+				// Since workerPods is a collection, it's typed as list(Pod)
+				// We use size() to reference the collection and create a dependency
+				generator.WithResource("monitorPod", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "${string(size(workerPods))}-monitor",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "monitor",
+								"image": "monitor:latest",
+							},
+						},
+					},
+				}, nil, nil),
+			},
+			wantErr: false,
+			validateGraph: func(t *testing.T, graph *Graph) {
+				// monitorPod should depend on workerPods
+				monitorPod := graph.Resources["monitorPod"]
+				require.NotNil(t, monitorPod)
+				assert.Contains(t, monitorPod.GetDependencies(), "workerPods")
+			},
+		},
+		{
+			name: "forEach expression must be standalone - embedded expression rejected",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"WorkerPool", "v1alpha1",
+					map[string]interface{}{
+						"workers": "[]string",
+					},
+					nil,
+				),
+				generator.WithResourceCollection("workerPods", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "worker",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "worker",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				},
+					[]krov1alpha1.ForEachDimension{
+						// Non-standalone: expression embedded in string
+						{"name": "prefix-${schema.spec.workers}"},
+					},
+					nil, nil),
+			},
+			wantErr: true,
+			errMsg:  "only standalone expressions are allowed",
+		},
+		{
+			name: "forEach expression must be standalone - multiple expressions rejected",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"WorkerPool", "v1alpha1",
+					map[string]interface{}{
+						"workers": "[]string",
+						"prefix":  "string",
+					},
+					nil,
+				),
+				generator.WithResourceCollection("workerPods", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "worker",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "worker",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				},
+					[]krov1alpha1.ForEachDimension{
+						// Non-standalone: multiple expressions
+						{"name": "${schema.spec.prefix}-${schema.spec.workers}"},
+					},
+					nil, nil),
+			},
+			wantErr: true,
+			errMsg:  "only standalone expressions are allowed",
+		},
+		{
+			name: "resource without forEach has empty iterators",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"Simple", "v1alpha1",
+					map[string]interface{}{
+						"name": "string",
+					},
+					nil,
+				),
+				generator.WithResource("pod", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "simple-pod",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "app",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				}, nil, nil),
+			},
+			wantErr: false,
+			validateGraph: func(t *testing.T, graph *Graph) {
+				resource := graph.Resources["pod"]
+				require.NotNil(t, resource)
+				assert.Empty(t, resource.GetForEachDimensions())
+			},
+		},
+		{
+			name: "collection cannot reference itself in readyWhen",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"PodCollection", "v1alpha1",
+					map[string]interface{}{
+						"names": "[]string",
+					},
+					nil,
+				),
+				generator.WithResourceCollection("pods", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "${name}",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "app",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				},
+					[]krov1alpha1.ForEachDimension{
+						{"name": "${schema.spec.names}"},
+					},
+					// Self-reference: using pods.all() instead of each
+					[]string{"${pods.all(p, p.status.phase == 'Running')}"},
+					nil),
+			},
+			wantErr: true,
+			errMsg:  "collection \"pods\" cannot reference itself in readyWhen",
+		},
+		{
+			name: "collection with valid each-based readyWhen",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"PodCollection", "v1alpha1",
+					map[string]interface{}{
+						"names": "[]string",
+					},
+					nil,
+				),
+				generator.WithResourceCollection("pods", map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"name": "${name}",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"name":  "app",
+								"image": "nginx:latest",
+							},
+						},
+					},
+				},
+					[]krov1alpha1.ForEachDimension{
+						{"name": "${schema.spec.names}"},
+					},
+					// Valid: using each keyword for per-item readiness
+					[]string{"${each.status.phase == 'Running'}"},
+					nil),
+			},
+			wantErr: false,
+			validateGraph: func(t *testing.T, graph *Graph) {
+				resource := graph.Resources["pods"]
+				require.NotNil(t, resource)
+				assert.True(t, resource.IsCollection())
+				assert.Equal(t, []string{"each.status.phase == 'Running'"}, resource.GetReadyWhenExpressions())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rgd := generator.NewResourceGraphDefinition("testrgd", tt.resourceGraphDefinitionOpts...)
+			graph, err := builder.NewResourceGraphDefinition(rgd)
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				require.NoError(t, err)
+				if tt.validateGraph != nil {
+					tt.validateGraph(t, graph)
+				}
 			}
 		})
 	}

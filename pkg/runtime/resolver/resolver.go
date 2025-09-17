@@ -148,7 +148,6 @@ func (r *Resolver) resolveField(field variable.FieldDescriptor) ResolutionResult
 // getValueFromPath retrieves a value from the resource using a dot separated path.
 // NOTE(a-hilaly): this is very similar to the `setValueAtPath` function maybe
 // we can refactor something here.
-// getValueFromPath retrieves a value from the resource using a dot-separated path.
 func (r *Resolver) getValueFromPath(path string) (interface{}, error) {
 	path = strings.TrimPrefix(path, ".") // Remove leading dot if present
 	segments, err := fieldpath.Parse(path)

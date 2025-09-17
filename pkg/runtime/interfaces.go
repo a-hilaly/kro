@@ -69,6 +69,28 @@ type Interface interface {
 	// IgnoreResource ignores resource that has a condition expressison that evaluated
 	// to false
 	IgnoreResource(resourceID string)
+
+	// ExpandCollection evaluates the forEach expressions for a collection resource
+	// and returns the expanded resources. Each returned resource has its template
+	// expressions resolved with the iterator bindings.
+	// Returns an error if the resource is not a collection or if expansion fails.
+	ExpandCollection(resourceID string) ([]*unstructured.Unstructured, error)
+
+	// GetCollectionResources returns all expanded resources for a collection in order.
+	// The returned slice is guaranteed to be in the same order as originally stored
+	// via SetCollectionResources (index 0, 1, 2, ...).
+	// Returns nil if the collection hasn't been expanded yet.
+	GetCollectionResources(resourceID string) []*unstructured.Unstructured
+
+	// SetCollectionResources stores all expanded resources for a collection at once.
+	// The input slice MUST be in the same order as returned by ExpandCollection.
+	// The slice index becomes the storage index (0, 1, 2, ...).
+	// This should be called after all items have been applied to K8s.
+	SetCollectionResources(resourceID string, resources []*unstructured.Unstructured)
+
+	// IsCollectionReady checks if all expanded resources in a collection are ready.
+	// Returns true only if all resources satisfy their readyWhen expressions.
+	IsCollectionReady(resourceID string) (bool, string, error)
 }
 
 // ResourceDescriptor provides metadata about a resource.
@@ -117,6 +139,10 @@ type ResourceDescriptor interface {
 	// IsExternalRef returns true if the resource is marked as an external reference
 	// This is used for external references
 	IsExternalRef() bool
+
+	// IsCollection returns true if the resource has forEach iterators,
+	// meaning it will expand into multiple resources at runtime.
+	IsCollection() bool
 }
 
 // Resource extends `ResourceDescriptor` to include the actual resource data.
@@ -126,4 +152,23 @@ type Resource interface {
 	// Unstructured returns the resource data as an unstructured.Unstructured
 	// object.
 	Unstructured() *unstructured.Unstructured
+}
+
+// ForEachDimensionInfo provides the information needed to expand a collection.
+// This is the runtime view of a forEach dimension (api/v1alpha1.ForEachDimension).
+type ForEachDimensionInfo struct {
+	// Name is the variable name used in templates (e.g., "region")
+	Name string
+	// Expression is the CEL expression that evaluates to a collection
+	Expression string
+}
+
+// CollectionResource extends Resource with collection-specific methods.
+// Resources that have forEach dimensions implement this interface.
+type CollectionResource interface {
+	Resource
+
+	// GetForEachDimensionInfo returns the forEach dimension information.
+	// This allows the runtime to access dimension data without importing graph.
+	GetForEachDimensionInfo() []ForEachDimensionInfo
 }

@@ -155,8 +155,14 @@ func (igr *instanceGraphReconciler) areDependenciesReady(resourceID string) bool
 		}
 
 		// Check if dependency satisfies its readyWhen conditions
-		if ready, _, err := igr.runtime.IsResourceReady(depID); err != nil || !ready {
-			return false
+		if igr.runtime.ResourceDescriptor(depID).IsCollection() {
+			if ready, _, err := igr.runtime.IsCollectionReady(depID); err != nil || !ready {
+				return false
+			}
+		} else {
+			if ready, _, err := igr.runtime.IsResourceReady(depID); err != nil || !ready {
+				return false
+			}
 		}
 	}
 
@@ -245,6 +251,44 @@ func (igr *instanceGraphReconciler) reconcileInstance(ctx context.Context) error
 			continue
 		}
 
+		// Collection resources expand into multiple resources
+		if igr.runtime.ResourceDescriptor(resourceID).IsCollection() {
+			expandedResources, err := igr.runtime.ExpandCollection(resourceID)
+			if err != nil {
+				resourceState.State = ResourceStateError
+				resourceState.Err = fmt.Errorf("failed to expand collection: %w", err)
+				break
+			}
+			collectionSize := len(expandedResources)
+			collectionResults := make([]*unstructured.Unstructured, collectionSize)
+			for i, expandedResource := range expandedResources {
+				collectionLabeler := metadata.NewCollectionItemLabeler(resourceID, i, collectionSize)
+				collectionLabeler.ApplyLabels(expandedResource)
+				expandedID := fmt.Sprintf("%s-%d", resourceID, i)
+				clusterObj, err := aset.Add(ctx, applyset.ApplyableObject{Unstructured: expandedResource, ID: expandedID})
+				if err != nil {
+					return fmt.Errorf("failed to add expanded resource %s to applyset: %w", expandedID, err)
+				}
+				collectionResults[i] = clusterObj
+			}
+			igr.runtime.SetCollectionResources(resourceID, collectionResults)
+			if _, err := igr.runtime.Synchronize(); err != nil {
+				return fmt.Errorf("failed to synchronize after collection expansion: %w", err)
+			}
+			if ready, reason, err := igr.runtime.IsCollectionReady(resourceID); err != nil || !ready {
+				log.V(1).Info("Collection not ready", "reason", reason, "error", err)
+				resourceState.State = ResourceStateWaitingForReadiness
+				if err != nil {
+					resourceState.Err = err
+				}
+				unresolvedResourceID = resourceID
+				prune = false
+				break
+			}
+			resourceState.State = ResourceStateSynced
+			continue
+		}
+
 		// Regular resources go through the applyset
 		applyable := applyset.ApplyableObject{
 			Unstructured: resource,
@@ -266,16 +310,41 @@ func (igr *instanceGraphReconciler) reconcileInstance(ctx context.Context) error
 	}
 
 	result, err := aset.Apply(ctx, prune)
+
+	// Build map for efficient lookup
+	appliedByID := make(map[string]*unstructured.Unstructured)
+	for _, applied := range result.AppliedObjects {
+		if applied.Error == nil && applied.LastApplied != nil {
+			appliedByID[applied.ID] = applied.LastApplied
+		}
+	}
+
+	// Update collection resources from apply results (Add returns nil for new resources)
+	for resourceID := range igr.state.ResourceStates {
+		if !igr.runtime.ResourceDescriptor(resourceID).IsCollection() {
+			continue
+		}
+		currentResources := igr.runtime.GetCollectionResources(resourceID)
+		for i := range currentResources {
+			expandedID := fmt.Sprintf("%s-%d", resourceID, i)
+			if applied, ok := appliedByID[expandedID]; ok {
+				currentResources[i] = applied
+			}
+		}
+		igr.runtime.SetCollectionResources(resourceID, currentResources)
+	}
+
+	// Update regular resources
 	for _, applied := range result.AppliedObjects {
 		resourceState := igr.state.ResourceStates[applied.ID]
+		if resourceState == nil {
+			continue // collection item, already handled above
+		}
 		if applied.Error != nil {
 			resourceState.State = ResourceStateError
 			resourceState.Err = applied.Error
-		} else {
-			// Update runtime with the applied resource
-			if applied.LastApplied != nil {
-				igr.runtime.SetResource(applied.ID, applied.LastApplied)
-			}
+		} else if applied.LastApplied != nil {
+			igr.runtime.SetResource(applied.ID, applied.LastApplied)
 			igr.updateResourceReadiness(applied.ID)
 		}
 	}
@@ -367,6 +436,51 @@ func (igr *instanceGraphReconciler) initializeDeletionState() error {
 			return fmt.Errorf("failed to synchronize during deletion state initialization: %w", err)
 		}
 
+		descriptor := igr.runtime.ResourceDescriptor(resourceID)
+
+		// Handle collection resources differently - they expand to multiple K8s resources
+		if descriptor.IsCollection() {
+			gvr := descriptor.GetGroupVersionResource()
+			instance := igr.runtime.GetInstance()
+			selector := fmt.Sprintf("%s=%s,%s=%s",
+				metadata.NodeIDLabel, resourceID,
+				metadata.InstanceIDLabel, string(instance.GetUID()),
+			)
+
+			var list *unstructured.UnstructuredList
+			var err error
+			if descriptor.IsNamespaced() {
+				list, err = igr.client.Resource(gvr).Namespace(instance.GetNamespace()).List(context.TODO(), metav1.ListOptions{
+					LabelSelector: selector,
+				})
+			} else {
+				list, err = igr.client.Resource(gvr).List(context.TODO(), metav1.ListOptions{
+					LabelSelector: selector,
+				})
+			}
+			if err != nil {
+				return fmt.Errorf("failed to get collection items for %s: %w", resourceID, err)
+			}
+
+			if len(list.Items) == 0 {
+				igr.state.ResourceStates[resourceID] = &ResourceState{
+					State: ResourceStateDeleted,
+				}
+				continue
+			}
+
+			items := make([]*unstructured.Unstructured, len(list.Items))
+			for i := range list.Items {
+				items[i] = &list.Items[i]
+			}
+			igr.runtime.SetCollectionResources(resourceID, items)
+
+			igr.state.ResourceStates[resourceID] = &ResourceState{
+				State: ResourceStatePendingDeletion,
+			}
+			continue
+		}
+
 		resource, state := igr.runtime.GetResource(resourceID)
 		if state != runtime.ResourceStateResolved {
 			igr.state.ResourceStates[resourceID] = &ResourceState{
@@ -425,6 +539,52 @@ func (igr *instanceGraphReconciler) deleteResourcesInOrder(ctx context.Context) 
 // deleteResource handles the deletion of a single resource and updates its state.
 func (igr *instanceGraphReconciler) deleteResource(ctx context.Context, resourceID string) error {
 	igr.log.V(1).Info("Deleting resource", "resourceID", resourceID)
+
+	descriptor := igr.runtime.ResourceDescriptor(resourceID)
+
+	// Handle collection resources - delete each item
+	if descriptor.IsCollection() {
+		items := igr.runtime.GetCollectionResources(resourceID)
+		if len(items) == 0 {
+			igr.state.ResourceStates[resourceID].State = ResourceStateDeleted
+			return nil
+		}
+
+		gvr := descriptor.GetGroupVersionResource()
+		allDeleted := true
+		for _, item := range items {
+			// Use the item's namespace if set; otherwise fall back to instance namespace for namespaced resources
+			ns := item.GetNamespace()
+			if ns == "" && descriptor.IsNamespaced() {
+				ns = igr.runtime.GetInstance().GetNamespace()
+			}
+			var rc dynamic.ResourceInterface
+			base := igr.client.Resource(gvr)
+			if descriptor.IsNamespaced() {
+				rc = base.Namespace(ns)
+			} else {
+				rc = base
+			}
+			err := rc.Delete(ctx, item.GetName(), metav1.DeleteOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				igr.state.ResourceStates[resourceID].State = InstanceStateError
+				igr.state.ResourceStates[resourceID].Err = fmt.Errorf("failed to delete collection item %s: %w", item.GetName(), err)
+				return igr.state.ResourceStates[resourceID].Err
+			}
+			allDeleted = false
+		}
+
+		if allDeleted {
+			igr.state.ResourceStates[resourceID].State = ResourceStateDeleted
+			return nil
+		}
+
+		igr.state.ResourceStates[resourceID].State = InstanceStateDeleting
+		return igr.delayedRequeue(fmt.Errorf("collection deletion in progress"))
+	}
 
 	resource, _ := igr.runtime.GetResource(resourceID)
 	rc := igr.getResourceClient(resourceID)
