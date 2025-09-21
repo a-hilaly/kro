@@ -17,8 +17,13 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"log"
 	"os"
 	"time"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"go.uber.org/zap/zapcore"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -81,6 +86,10 @@ func main() {
 		logLevel int
 		qps      float64
 		burst    int
+
+		// debugging flags
+		enableProfiling bool
+		pprofPort       int
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8078", "The address the metric endpoint binds to.")
@@ -126,7 +135,20 @@ func main() {
 	flag.IntVar(&burst, "client-burst", 150,
 		"The number of requests that can be stored for processing before the server starts enforcing the QPS limit")
 
+	flag.BoolVar(&enableProfiling, "enable-profiling", false, "Enable pprof profiling")
+	flag.IntVar(&pprofPort, "pprof-port", 6060, "The port the pprof server will listen on")
+
 	flag.Parse()
+
+	// if profiling is enabled, start pprof server
+	if enableProfiling {
+		go func() {
+			log.Printf("Starting pprof server on :%d", pprofPort)
+			if err := http.ListenAndServe(fmt.Sprintf(":%d", pprofPort), nil); err != nil {
+				log.Printf("Failed to start pprof server: %v", err)
+			}
+		}()
+	}
 
 	opts := zap.Options{
 		Development: true,
