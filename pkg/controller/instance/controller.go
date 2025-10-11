@@ -155,3 +155,31 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) error {
 	}
 	return instanceGraphReconciler.reconcile(ctx)
 }
+
+// updateInstanceStatusOnError updates the instance status when errors occur in the main controller
+func (c *Controller) updateInstanceStatusOnError(ctx context.Context, instance *unstructured.Unstructured) {
+	// Prepare status with error conditions
+	wrapped := wrapInstance(instance)
+	conditionSet := instanceConditionTypes.For(wrapped)
+
+	status := map[string]interface{}{
+		"state": InstanceStateError,
+	}
+
+	if conditions := conditionSet.List(); len(conditions) > 0 {
+		// Marshal conditions to JSON and then unmarshal to []interface{} to get map[string]interface{} representation
+		conditionsJSON, err := json.Marshal(conditions)
+		if err == nil {
+			var conditionsInterface []interface{}
+			if err := json.Unmarshal(conditionsJSON, &conditionsInterface); err == nil {
+				status["conditions"] = conditionsInterface
+			}
+		}
+	}
+
+	// Update status - ignore errors as this is best effort
+	instance.Object["status"] = status
+	_, _ = c.clientSet.Dynamic().Resource(c.gvr).
+		Namespace(instance.GetNamespace()).
+		UpdateStatus(ctx, instance, metav1.UpdateOptions{})
+}
