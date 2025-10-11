@@ -15,7 +15,6 @@
 package core_test
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -27,19 +26,17 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	krov1alpha1 "github.com/kro-run/kro/api/v1alpha1"
-	ctrlinstance "github.com/kro-run/kro/pkg/controller/instance"
-	"github.com/kro-run/kro/pkg/testutil/generator"
+	krov1alpha1 "github.com/kubernetes-sigs/kro/api/v1alpha1"
+	ctrlinstance "github.com/kubernetes-sigs/kro/pkg/controller/instance"
+	"github.com/kubernetes-sigs/kro/pkg/testutil/generator"
 )
 
 var _ = Describe("Instance Conditions", func() {
 	var (
-		ctx       context.Context
 		namespace string
 	)
 
-	BeforeEach(func() {
-		ctx = context.Background()
+	BeforeEach(func(ctx SpecContext) {
 		namespace = fmt.Sprintf("test-%s", rand.String(5))
 		// Create namespace
 		Expect(env.Client.Create(ctx, &corev1.Namespace{
@@ -49,7 +46,7 @@ var _ = Describe("Instance Conditions", func() {
 		})).To(Succeed())
 	})
 
-	It("should have correct hierarchical conditions on successful instance reconciliation", func() {
+	It("should have correct hierarchical conditions on successful instance reconciliation", func(ctx SpecContext) {
 		// Create a simple ResourceGraphDefinition
 		rgd := generator.NewResourceGraphDefinition("test-instance-conditions-success",
 			generator.WithSchema(
@@ -74,7 +71,7 @@ var _ = Describe("Instance Conditions", func() {
 		Expect(env.Client.Create(ctx, rgd)).To(Succeed())
 
 		// Wait for RGD to be ready and CRD to be created
-		Eventually(func(g Gomega) {
+		Eventually(func(g Gomega, ctx SpecContext) {
 			err := env.Client.Get(ctx, types.NamespacedName{Name: rgd.Name}, rgd)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -182,7 +179,7 @@ var _ = Describe("Instance Conditions", func() {
 		}, 10*time.Second, time.Second).Should(Succeed())
 	})
 
-	It("should show proper condition progression during deletion", func() {
+	It("should show proper condition progression during deletion", func(ctx SpecContext) {
 		// Create a simple ResourceGraphDefinition
 		rgd := generator.NewResourceGraphDefinition("test-instance-conditions-deletion",
 			generator.WithSchema(

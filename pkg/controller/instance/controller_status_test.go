@@ -27,8 +27,8 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
-	"github.com/kro-run/kro/api/v1alpha1"
-	krofake "github.com/kro-run/kro/pkg/client/fake"
+	"github.com/kubernetes-sigs/kro/api/v1alpha1"
+	krofake "github.com/kubernetes-sigs/kro/pkg/client/fake"
 )
 
 func TestConditionsMarker(t *testing.T) {
