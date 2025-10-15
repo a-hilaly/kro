@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package schema
+package resolver
 
 import (
+	"time"
+
 	"k8s.io/apiextensions-apiserver/pkg/generated/openapi"
 	"k8s.io/apiserver/pkg/cel/openapi/resolver"
 	"k8s.io/client-go/discovery"
@@ -23,7 +25,8 @@ import (
 )
 
 // NewCombinedResolver creates a new schema resolver that can resolve both core and client types.
-func NewCombinedResolver(clientConfig *rest.Config) (resolver.SchemaResolver, *discovery.DiscoveryClient, error) {
+func NewCombinedResolver(clientConfig *rest.Config) (resolver.SchemaResolver, discovery.DiscoveryInterface, error) {
+	// Create a regular discovery client first
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(clientConfig)
 	if err != nil {
 		return nil, nil, err
@@ -37,6 +40,12 @@ func NewCombinedResolver(clientConfig *rest.Config) (resolver.SchemaResolver, *d
 		Discovery: discoveryClient,
 	}
 
+	cachedResolver := NewTTLCachedSchemaResolver(
+		clientResolver,
+		500,           // maxSize: enough for 200 CRDs × 2-3 versions
+		5*time.Minute, // TTL: balance between freshness and performance
+	)
+
 	// CoreResolver is a resolver that uses the OpenAPI definitions to resolve
 	// core types. It is used to resolve types that are known at compile time.
 	coreResolver := resolver.NewDefinitionsSchemaResolver(
@@ -44,8 +53,6 @@ func NewCombinedResolver(clientConfig *rest.Config) (resolver.SchemaResolver, *d
 		scheme.Scheme,
 	)
 
-	// Combine the two resolvers to create a single resolver that can resolve
-	// both core and client types.
-	combinedResolver := coreResolver.Combine(clientResolver)
+	combinedResolver := coreResolver.Combine(cachedResolver)
 	return combinedResolver, discoveryClient, nil
 }
