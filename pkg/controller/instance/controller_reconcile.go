@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/release-utils/version"
 
 	"github.com/kubernetes-sigs/kro/pkg/applyset"
+	"github.com/kubernetes-sigs/kro/pkg/graph"
 	"github.com/kubernetes-sigs/kro/pkg/metadata"
 	"github.com/kubernetes-sigs/kro/pkg/requeue"
 	"github.com/kubernetes-sigs/kro/pkg/runtime"
@@ -72,7 +73,11 @@ type instanceGraphReconciler struct {
 
 	// restMapper is a REST mapper for the Kubernetes API server
 	restMapper meta.RESTMapper
-
+	// rgd is a read-only reference to the Graph that the controller is
+	// managing instances for.
+	rgd *graph.Graph
+	// instance is the instance being reconciled
+	instance *unstructured.Unstructured
 	// runtime is the runtime representation of the ResourceGraphDefinition. It holds the
 	// information about the instance and its sub-resources, the CEL expressions
 	// their dependencies, and the resolved values... etc
@@ -93,8 +98,18 @@ type instanceGraphReconciler struct {
 // It manages the full lifecycle of the instance including creation, updates,
 // and deletion.
 func (igr *instanceGraphReconciler) reconcile(ctx context.Context) error {
-	instance := igr.runtime.GetInstance()
 	igr.state = newInstanceState()
+
+	// Create runtime - if this fails, the defer in Controller.Reconcile handles status
+	rgRuntime, err := igr.rgd.NewGraphRuntime(igr.instance)
+	if err != nil {
+		mark := NewConditionsMarkerFor(igr.instance)
+		mark.GraphNotResolved("failed to create runtime resource graph definition: %v", err)
+		return fmt.Errorf("failed to create runtime resource graph definition: %w", err)
+	}
+	igr.runtime = rgRuntime
+
+	instance := igr.runtime.GetInstance()
 
 	// Handle instance deletion if marked for deletion
 	if !instance.GetDeletionTimestamp().IsZero() {
@@ -105,26 +120,12 @@ func (igr *instanceGraphReconciler) reconcile(ctx context.Context) error {
 	return igr.handleReconciliation(ctx, igr.reconcileInstance)
 }
 
-// handleReconciliation provides a common wrapper for reconciliation operations,
-// handling status updates and error management.
+// handleReconciliation provides a common wrapper for reconciliation operations.
+// Status updates are handled by the defer in Controller.Reconcile.
 func (igr *instanceGraphReconciler) handleReconciliation(
 	ctx context.Context,
 	reconcileFunc func(context.Context) error,
 ) error {
-	defer func() {
-		// Update instance state based on reconciliation result
-		igr.updateInstanceState()
-
-		// Prepare and patch status
-		status := igr.prepareStatus()
-		if err := igr.patchInstanceStatus(ctx, status); err != nil {
-			// Only log error if instance still exists
-			if !apierrors.IsNotFound(err) {
-				igr.log.Error(err, "Failed to patch instance status")
-			}
-		}
-	}()
-
 	igr.state.ReconcileErr = reconcileFunc(ctx)
 	return igr.state.ReconcileErr
 }
