@@ -42,11 +42,11 @@ _Figure 1: End user interface - Custom API_
 ### ResourceGraphDefinition
 
 When you install **Kro** in your cluster, it installs a Custom Resource
-Definition (CRD) called **ResourceGraphDefinition (RG)**. The **Platform**, **Security**,
+Definition (CRD) called **ResourceGraphDefinition (RGD)**. The **Platform**, **Security**,
 and **Compliance** teams can collaborate to create custom APIs by defining
 Custom Resources for the ResourceGraphDefinition CRD.
 
-In the depicted example, the **Platform Team** has created a **RG** with
+In the depicted example, the **Platform Team** has created an **RGD** with
 arbitrary name "Application Stack" that encapsulates the necessary resources,
 along with any additional logic, abstractions, and security best practices. When
 the RGD is applied to the cluster, a new API of kind ApplicationStack is created
@@ -57,7 +57,7 @@ handles the deployment and configuration of the required resources.
 <div align="center">
 
 ![Platform Team Interface](/img/architecture/KRO-Platform-Team.png)
-_Figure 2: ResourceGraphDefinition (RG) - Platform Team Interface_
+_Figure 2: ResourceGraphDefinition (RGD) - Platform Team Interface_
 
 </div>
 
@@ -75,7 +75,7 @@ requirements.
 <div align="center">
 
 ![ResourceGraphDefinition Instance](/img/architecture/KRO-Instance.png)
-_Figure 3: ResourceGraphDefinition Instance (RGI)_
+_Figure 3: ResourceGraphDefinition Instance_
 
 </div>
 

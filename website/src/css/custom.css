@@ -175,3 +175,22 @@ div[class^="announcementBar_"] {
   height: 100%;
   opacity: 1;
 }
+
+/* Full-width layout for API reference page */
+html.fullWidthContent main > .container {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+html.fullWidthContent article {
+  max-width: 100% !important;
+}
+
+html.fullWidthContent .row {
+  margin: 0 !important;
+}
+
+html.fullWidthContent .col {
+  padding: 0 2rem !important;
+  max-width: 100% !important;
+}
