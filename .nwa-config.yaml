@@ -1,9 +1,0 @@
-nwa:
-  holder: The Kube Resource Orchestrator Authors
-  license: apache
-  year: "2025"
-  path:
-    - cmd/**/*.go
-    - pkg/**/*.go
-    - test/**/*.go
-  mute: true

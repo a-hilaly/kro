@@ -1,8 +1,0 @@
-defaultBaseImage: gcr.io/distroless/static
-defaultPlatforms:
-  - linux/arm64
-  - linux/amd64
-defaultLdflags:
-  - -s
-  - -w
-  - "{{ .Env.LDFLAGS }}"
