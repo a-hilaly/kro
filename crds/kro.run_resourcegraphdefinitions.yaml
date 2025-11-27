@@ -162,11 +162,11 @@ spec:
                 properties:
                   additionalPrinterColumns:
                     description: |-
-                      AdditionalPrinterColumns defines custom columns to display when using 'kubectl get'.
-                      These columns are added to the generated CRD and allow you to show important
-                      instance information at a glance. If specified, default columns are not included,
-                      so you must explicitly add them if needed.
-                      Example: Display the instance's status and endpoint when listing resources.
+                      AdditionalPrinterColumns defines additional printer columns
+                      that will be passed down to the created CRD. If set, no
+                      default printer columns will be added to the created CRD,
+                      and if default printer columns need to be retained, they
+                      need to be added explicitly.
                     items:
                       description: CustomResourceColumnDefinition specifies a column
                         for server side printing.
@@ -261,28 +261,6 @@ spec:
                       Example: {"Server": {"host": "string", "port": "integer"}}
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
-                  validation:
-                    description: |-
-                      Validation is a list of CEL validation rules applied to instances of the generated CRD.
-                      Each validation rule can reference instance fields using 'self'.
-                      Use this to enforce business logic and constraints beyond basic type validation.
-                    items:
-                      description: Validation represents a CEL validation rule that
-                        is applied to instances of the ResourceGraphDefinition.
-                      properties:
-                        expression:
-                          description: |-
-                            Expression is a CEL expression that must evaluate to true for the validation to pass.
-                            The expression can reference fields from the instance's spec using 'self'.
-                            Example: "self.replicas >= 1 && self.replicas <= 10"
-                          type: string
-                        message:
-                          description: |-
-                            Message is the error message displayed when the validation fails.
-                            It should clearly describe what condition was violated.
-                          type: string
-                      type: object
-                    type: array
                 required:
                 - apiVersion
                 - kind
