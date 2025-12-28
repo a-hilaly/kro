@@ -115,6 +115,24 @@ spec:
                       - kind
                       - metadata
                       type: object
+                    forEach:
+                      description: |-
+                        ForEach defines iterators that expand this resource into a collection of resources.
+                        When forEach is specified, kro creates one resource instance for each element
+                        (or combination of elements when multiple iterators are specified) in the collections.
+                        Each iterator binds a variable name to a CEL expression that returns an array or map.
+                        Use iterator variables (e.g., region.item, region.index) in the template to customize each instance.
+                      items:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          ForEachIterator defines a single iterator in a forEach block.
+                          Each iterator is a map with exactly one entry where the key is the variable name
+                          and the value is the CEL expression. Example: {"region": "${schema.spec.regions}"}
+                        maxProperties: 1
+                        minProperties: 1
+                        type: object
+                      type: array
                     id:
                       description: |-
                         ID is a unique identifier for this resource within the ResourceGraphDefinition.
@@ -223,9 +241,12 @@ spec:
                     description: |-
                       Group is the API group for the generated CRD. Together with APIVersion and Kind,
                       it forms the complete GVK (Group-Version-Kind) identifier.
-                      If omitted, defaults to "kro.run".
+                      If omitted, defaults to "kro.run". This field is immutable after creation.
                       Example: "mycompany.io", "databases.example.com"
                     type: string
+                    x-kubernetes-validations:
+                    - message: group is immutable
+                      rule: self == oldSelf
                   kind:
                     description: |-
                       Kind is the name of the custom resource type that will be created.
