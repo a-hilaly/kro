@@ -120,8 +120,8 @@ spec:
                         ForEach defines iterators that expand this resource into a collection of resources.
                         When forEach is specified, kro creates one resource instance for each element
                         (or combination of elements when multiple iterators are specified) in the collections.
-                        Each iterator binds a variable name to a CEL expression that returns an array or map.
-                        Use iterator variables (e.g., region.item, region.index) in the template to customize each instance.
+                        Each iterator binds a variable name to a CEL expression that evaluates to an array.
+                        Use the iterator variable directly in template expressions (e.g., ${region}).
                       items:
                         additionalProperties:
                           type: string

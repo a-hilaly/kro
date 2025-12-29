@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.9.1">
 <title data-rh="true">Collections | kro</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://kro.run/kro/img/kro.svg"><meta data-rh="true" name="twitter:image" content="https://kro.run/kro/img/kro.svg"><meta data-rh="true" property="og:url" content="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/collections"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Collections | kro"><meta data-rh="true" name="description" content="By default, each resource definition (in spec.resources) creates exactly one"><meta data-rh="true" property="og:description" content="By default, each resource definition (in spec.resources) creates exactly one"><link data-rh="true" rel="icon" href="/kro/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/collections"><link data-rh="true" rel="alternate" href="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/collections" hreflang="en"><link data-rh="true" rel="alternate" href="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/collections" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Collections","item":"https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/collections"}]}</script><meta name="go-import" content="kro.run/pkg git https://github.com/kubernetes-sigs/kro">
 <meta name="go-source" content="kro.run/pkg git https://github.com/kubernetes-sigs/kro https://github.com/kubernetes-sigs/kro/tree/main{/dir} https://github.com/kubernetes-sigs/kro/blob/main{/dir}/{file}#L{line}"><link rel="stylesheet" href="/kro/assets/css/styles.5d887e16.css">
-<script src="/kro/assets/js/runtime~main.0285ca76.js" defer="defer"></script>
-<script src="/kro/assets/js/main.6d120dbe.js" defer="defer"></script>
+<script src="/kro/assets/js/runtime~main.e5ac6cf5.js" defer="defer"></script>
+<script src="/kro/assets/js/main.ee48e688.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg style="display: none;"><defs>
@@ -39,77 +39,87 @@ field takes one or more iterators, and kro creates one resource for each element
 <!-- -->  <span class="yamlKey_lCMJ">resources</span>:<!-- -->
 <!-- -->    <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
 <!-- -->      <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->        <!-- -->- <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
+<!-- -->        <!-- -->- <span class="yamlKey_lCMJ">worker</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
 <!-- -->      <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">apiVersion</span>: <!-- -->v1<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->          <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;worker-&#x27; + name.item}</span>
+<!-- -->          <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + worker}</span>
 <!-- -->        <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->          <span class="yamlKey_lCMJ">containers</span>:<!-- -->
 <!-- -->            <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->app<!-- -->
 <!-- -->              <span class="yamlKey_lCMJ">image</span>: <span class="celExpression_MAYK">${schema.spec.image}</span></code></pre></div></div>
-<p>When a user creates an instance with <code>workers: [&quot;alice&quot;, &quot;bob&quot;]</code>, kro creates
-two Pods: <code>worker-alice</code> and <code>worker-bob</code>. If the user later updates the list
-to <code>[&quot;alice&quot;, &quot;bob&quot;, &quot;charlie&quot;]</code>, kro creates <code>worker-charlie</code> to match.</p>
-<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="how-foreach-works">How forEach Works<a href="#how-foreach-works" class="hash-link" aria-label="Direct link to How forEach Works" title="Direct link to How forEach Works" translate="no">​</a></h2>
-<p>When you add <code>forEach</code> to a resource, kro treats that resource block as a
-template for multiple resources rather than a single one.</p>
-<p><strong>At RGD validation time (static analysis)</strong>, kro analyzes the <code>forEach</code>
-expressions to determine the element types. If <code>schema.spec.workers</code> is
-<code>[]string</code>, kro knows each iteration yields a string and types the iterator
-variable accordingly. This enables <a href="/kro/next/docs/concepts/rgd/static-type-checking">static type checking</a>
-of expressions inside the template before any resources are created.</p>
-<p><strong>At instance reconciliation time (runtime)</strong>, when the reconciler reaches a
-collection node in the dependency graph:</p>
-<ol>
-<li>Evaluates each forEach CEL expression to get the current collections</li>
-<li>Expands into multiple resource operations - one per element (or combination)</li>
-<li>Compares against existing resources and creates, updates, or deletes as
-needed</li>
-<li>Evaluates <code>readyWhen</code> (if specified) across all collection resources before
-proceeding to dependent nodes</li>
-</ol>
-<p>Each resource in the collection is tracked independently. If one resource fails
-to reconcile, the others continue - kro doesn&#x27;t require all-or-nothing success
-within a collection.</p>
-<div class="theme-admonition theme-admonition-important admonition_xJq3 alert alert--info"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 14 16"><path fill-rule="evenodd" d="M7 2.3c3.14 0 5.7 2.56 5.7 5.7s-2.56 5.7-5.7 5.7A5.71 5.71 0 0 1 1.3 8c0-3.14 2.56-5.7 5.7-5.7zM7 1C3.14 1 0 4.14 0 8s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm1 3H6v5h2V4zm0 6H6v2h2v-2z"></path></svg></span>important</div><div class="admonitionContent_BuS1"><p>In kro, each entry in <code>spec.resources</code> is a node in the dependency graph. A
-collection (a resource with <code>forEach</code>) is also a single node in the graph - it
-expands into multiple resources at runtime, but dependencies treat it as one
-unit.</p></div></div>
+<p>When a user creates an instance with <code>workers: [&quot;alice&quot;, &quot;bob&quot;]</code>, kro creates two
+Pods - one for each worker. If the user later updates the list to
+<code>[&quot;alice&quot;, &quot;bob&quot;, &quot;charlie&quot;]</code>, kro creates a third Pod for &quot;charlie&quot;.</p>
 <h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="foreach-syntax">forEach Syntax<a href="#foreach-syntax" class="hash-link" aria-label="Direct link to forEach Syntax" title="Direct link to forEach Syntax" translate="no">​</a></h2>
-<p>The <code>forEach</code> field is an array of iterators. Each iterator is defined as
-<code>variableName: expression</code>:</p>
+<p>The <code>forEach</code> field is an array of iterators. Each iterator is a single-entry
+map binding a variable name to an expression:</p>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
 <!-- -->  <!-- -->- <span class="yamlKey_lCMJ">region</span>: <span class="celExpression_MAYK">${schema.spec.regions}</span></code></pre></div></div>
-<div class="theme-admonition theme-admonition-tip admonition_xJq3 alert alert--success"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 12 16"><path fill-rule="evenodd" d="M6.5 0C3.48 0 1 2.19 1 5c0 .92.55 2.25 1 3 1.34 2.25 1.78 2.78 2 4v1h5v-1c.22-1.22.66-1.75 2-4 .45-.75 1-2.08 1-3 0-2.81-2.48-5-5.5-5zm3.64 7.48c-.25.44-.47.8-.67 1.11-.86 1.41-1.25 2.06-1.45 3.23-.02.05-.02.11-.02.17H5c0-.06 0-.13-.02-.17-.2-1.17-.59-1.83-1.45-3.23-.2-.31-.42-.67-.67-1.11C2.44 6.78 2 5.65 2 5c0-2.2 2.02-4 4.5-4 1.22 0 2.36.42 3.22 1.19C10.55 2.94 11 3.94 11 5c0 .66-.44 1.78-.86 2.48zM4 14h5c-.23 1.14-1.3 2-2.5 2s-2.27-.86-2.5-2z"></path></svg></span>tip</div><div class="admonitionContent_BuS1"><p>Use descriptive names that reflect what you&#x27;re iterating over. The variable name
-becomes available in your template expressions.</p></div></div>
-<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="iteration-context-variables">Iteration Context Variables<a href="#iteration-context-variables" class="hash-link" aria-label="Direct link to Iteration Context Variables" title="Direct link to Iteration Context Variables" translate="no">​</a></h2>
-<p>Each iterator provides access to the current element through the variable name
-you specify:</p>
-<table><thead><tr><th>Variable</th><th>Description</th></tr></thead><tbody><tr><td><code>{name}.item</code></td><td>The current element being iterated over</td></tr><tr><td><code>{name}.index</code></td><td>The zero-based index (for arrays)</td></tr><tr><td><code>{name}.key</code></td><td>The key (for maps)</td></tr><tr><td><code>{name}.value</code></td><td>The value (for maps, same as <code>.item</code>)</td></tr></tbody></table>
-<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="iterating-over-arrays">Iterating Over Arrays<a href="#iterating-over-arrays" class="hash-link" aria-label="Direct link to Iterating Over Arrays" title="Direct link to Iterating Over Arrays" translate="no">​</a></h3>
+<p>Each map entry must have exactly one key-value pair:</p>
+<ul>
+<li><strong>Key</strong>: The iterator variable name (available in your template expressions)</li>
+<li><strong>Value</strong>: A CEL expression that <strong>must evaluate to an array</strong></li>
+</ul>
+<p>Arrays maintain their order, so resources are created in the same order as
+elements appear in the source array - this is deterministic and predictable.</p>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="iterating-over-maps">Iterating Over Maps<a href="#iterating-over-maps" class="hash-link" aria-label="Direct link to Iterating Over Maps" title="Direct link to Iterating Over Maps" translate="no">​</a></h3>
+<p>If you have map (object) data, convert it to a sorted array first. Maps have
+non-deterministic iteration order in Go, so converting to a sorted array ensures
+consistent resource creation order:</p>
+<div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="comment_cniX"># Given schema.spec.labels = {&quot;app&quot;: &quot;web&quot;, &quot;env&quot;: &quot;prod&quot;, &quot;team&quot;: &quot;platform&quot;}</span>
+<span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
+<!-- -->  <span class="comment_cniX"># Convert map keys to a sorted array</span>
+<!-- -->  <!-- -->- <span class="yamlKey_lCMJ">key</span>: <span class="celExpression_MAYK">${schema.spec.labels.map(k, k).sort()}</span></code></pre></div></div>
+<p>You can then access the value inside the template using the key.</p>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="iterator-variables">Iterator Variables<a href="#iterator-variables" class="hash-link" aria-label="Direct link to Iterator Variables" title="Direct link to Iterator Variables" translate="no">​</a></h2>
+<p>The variable name you specify becomes available in the template, holding the
+current element:</p>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>  <span class="comment_cniX"># [&quot;alice&quot;, &quot;bob&quot;, &quot;charlie&quot;]</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">worker</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>  <span class="comment_cniX"># [&quot;alice&quot;, &quot;bob&quot;, &quot;charlie&quot;]</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;worker-&#x27; + name.item}</span>        <span class="comment_cniX"># worker-alice, worker-bob, worker-charlie</span>
-<!-- -->      <span class="yamlKey_lCMJ">labels</span>:<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">app</span>: <span class="celExpression_MAYK">${name.item}</span>                   <span class="comment_cniX"># alice, bob, charlie</span>
-<!-- -->        <span class="yamlKey_lCMJ">index</span>: <span class="celExpression_MAYK">${string(name.index)}</span>        <span class="comment_cniX"># &quot;0&quot;, &quot;1&quot;, &quot;2&quot;</span></code></pre></div></div>
-<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="iterating-over-maps">Iterating Over Maps<a href="#iterating-over-maps" class="hash-link" aria-label="Direct link to Iterating Over Maps" title="Direct link to Iterating Over Maps" translate="no">​</a></h3>
-<div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->envConfigMaps<!-- -->
+<!-- -->      <span class="comment_cniX"># &lt;instance-name&gt;-alice, &lt;instance-name&gt;-bob, &lt;instance-name&gt;-charlie</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + worker}</span></code></pre></div></div>
+<p>To access the index, iterate over a range instead:</p>
+<div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">env</span>: <span class="celExpression_MAYK">${schema.spec.environments}</span>  <span class="comment_cniX"># {&quot;dev&quot;: &quot;us-west-1&quot;, &quot;prod&quot;: &quot;us-east-1&quot;}</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">idx</span>: <span class="celExpression_MAYK">${range(0, size(schema.spec.workers))}</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
-<!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->ConfigMap<!-- -->
+<!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;config-&#x27; + env.key}</span>  <span class="comment_cniX"># config-dev, config-prod</span>
-<!-- -->    <span class="yamlKey_lCMJ">data</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">environment</span>: <span class="celExpression_MAYK">${env.key}</span>        <span class="comment_cniX"># dev, prod</span>
-<!-- -->      <span class="yamlKey_lCMJ">region</span>: <span class="celExpression_MAYK">${env.value}</span>           <span class="comment_cniX"># us-west-1, us-east-1</span></code></pre></div></div>
+<!-- -->      <span class="comment_cniX"># &lt;instance-name&gt;-0, &lt;instance-name&gt;-1, &lt;instance-name&gt;-2</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + string(idx)}</span>
+<!-- -->    <span class="yamlKey_lCMJ">spec</span>:<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">containers</span>:<!-- -->
+<!-- -->        <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->worker<!-- -->
+<!-- -->          <span class="yamlKey_lCMJ">env</span>:<!-- -->
+<!-- -->            <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->WORKER_NAME<!-- -->
+<!-- -->              <span class="yamlKey_lCMJ">value</span>: <span class="celExpression_MAYK">${schema.spec.workers[idx]}</span>  <span class="comment_cniX"># alice, bob, charlie</span></code></pre></div></div>
+<div class="theme-admonition theme-admonition-tip admonition_xJq3 alert alert--success"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 12 16"><path fill-rule="evenodd" d="M6.5 0C3.48 0 1 2.19 1 5c0 .92.55 2.25 1 3 1.34 2.25 1.78 2.78 2 4v1h5v-1c.22-1.22.66-1.75 2-4 .45-.75 1-2.08 1-3 0-2.81-2.48-5-5.5-5zm3.64 7.48c-.25.44-.47.8-.67 1.11-.86 1.41-1.25 2.06-1.45 3.23-.02.05-.02.11-.02.17H5c0-.06 0-.13-.02-.17-.2-1.17-.59-1.83-1.45-3.23-.2-.31-.42-.67-.67-1.11C2.44 6.78 2 5.65 2 5c0-2.2 2.02-4 4.5-4 1.22 0 2.36.42 3.22 1.19C10.55 2.94 11 3.94 11 5c0 .66-.44 1.78-.86 2.48zM4 14h5c-.23 1.14-1.3 2-2.5 2s-2.27-.86-2.5-2z"></path></svg></span>tip</div><div class="admonitionContent_BuS1"><p>Use descriptive iterator names that reflect what you&#x27;re iterating over, like
+<code>worker</code>, <code>region</code>, or <code>dbSpec</code> rather than generic names like <code>item</code> or <code>i</code>.</p></div></div>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="resource-naming">Resource Naming<a href="#resource-naming" class="hash-link" aria-label="Direct link to Resource Naming" title="Direct link to Resource Naming" translate="no">​</a></h3>
+<p>Each resource in a collection must have a unique name. Always include the
+iterator variable in <code>metadata.name</code> to ensure uniqueness:</p>
+<div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
+<!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">worker</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
+<!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
+<!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
+<!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->      <span class="comment_cniX"># Good: includes iterator variable for uniqueness</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + worker}</span></code></pre></div></div>
+<div class="theme-admonition theme-admonition-warning admonition_xJq3 alert alert--warning"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8.893 1.5c-.183-.31-.52-.5-.887-.5s-.703.19-.886.5L.138 13.499a.98.98 0 0 0 0 1.001c.193.31.53.501.886.501h13.964c.367 0 .704-.19.877-.5a1.03 1.03 0 0 0 .01-1.002L8.893 1.5zm.133 11.497H6.987v-2.003h2.039v2.003zm0-3.004H6.987V5.987h2.039v4.006z"></path></svg></span>Unique Names Required</div><div class="admonitionContent_BuS1"><p>Resource names must be unique not just within the collection, but across all
+instances and RGDs in the same namespace. Kubernetes identifies resources by
+namespace + name + kind + apiVersion - if two resources share these, they
+conflict.</p><p>Best practice: always include the instance name to avoid cross-instance
+collisions:</p><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="comment_cniX"># With regions: [&quot;us-east&quot;, &quot;us-west&quot;] and tiers: [&quot;web&quot;, &quot;api&quot;]</span>
+<span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + region + &#x27;-&#x27; + tier}</span>
+<span class="comment_cniX"># Creates: myapp-us-east-web, myapp-us-east-api, myapp-us-west-web, myapp-us-west-api</span></code></pre></div></div><p>If you omit <code>schema.metadata.name</code>, two instances with the same iterator values
+will overwrite each other&#x27;s resources.</p></div></div>
 <h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="multiple-iterators-cartesian-product">Multiple Iterators (Cartesian Product)<a href="#multiple-iterators-cartesian-product" class="hash-link" aria-label="Direct link to Multiple Iterators (Cartesian Product)" title="Direct link to Multiple Iterators (Cartesian Product)" translate="no">​</a></h2>
 <p>When you specify multiple iterators, kro creates resources for every combination
 (cartesian product) of values:</p>
@@ -120,8 +130,8 @@ you specify:</p>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Deployment<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="comment_cniX"># Creates 4 deployments: us-east-web, us-east-api, us-west-web, us-west-api</span>
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${region.item + &#x27;-&#x27; + tier.item}</span>
+<!-- -->      <span class="comment_cniX"># Creates 4 deployments: myapp-us-east-web, myapp-us-east-api, etc.</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + region + &#x27;-&#x27; + tier}</span>
 <!-- -->    <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->      <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">spec</span>:<!-- -->
@@ -130,16 +140,23 @@ you specify:</p>
 <!-- -->              <span class="yamlKey_lCMJ">image</span>: <span class="celExpression_MAYK">${schema.spec.image}</span>
 <!-- -->              <span class="yamlKey_lCMJ">env</span>:<!-- -->
 <!-- -->                <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->REGION<!-- -->
-<!-- -->                  <span class="yamlKey_lCMJ">value</span>: <span class="celExpression_MAYK">${region.item}</span>
+<!-- -->                  <span class="yamlKey_lCMJ">value</span>: <span class="celExpression_MAYK">${region}</span>
 <!-- -->                <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->TIER<!-- -->
-<!-- -->                  <span class="yamlKey_lCMJ">value</span>: <span class="celExpression_MAYK">${tier.item}</span></code></pre></div></div>
+<!-- -->                  <span class="yamlKey_lCMJ">value</span>: <span class="celExpression_MAYK">${tier}</span></code></pre></div></div>
 <p>With <code>regions: [&quot;us-east&quot;, &quot;us-west&quot;]</code> and <code>tiers: [&quot;web&quot;, &quot;api&quot;]</code>, this creates
 4 deployments covering all combinations.</p>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="combination-order">Combination Order<a href="#combination-order" class="hash-link" aria-label="Direct link to Combination Order" title="Direct link to Combination Order" translate="no">​</a></h3>
+<p>The first iterator is the outer loop, subsequent iterators are nested inside.
+Resources are created in this order:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#1f2937;--prism-background-color:#fafafa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#1f2937;background-color:#fafafa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#1f2937"><span class="token comment" style="color:#9ca3af"># forEach:</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af">#   - region: [&quot;us-east&quot;, &quot;us-west&quot;]</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af">#   - tier: [&quot;web&quot;, &quot;api&quot;]</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain" style="display:inline-block"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># Creates resources in order:</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># 1. region=us-east, tier=web</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># 2. region=us-east, tier=api</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># 3. region=us-west, tier=web</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># 4. region=us-west, tier=api</span><br></span></code></pre></div></div>
+<p>This order is deterministic as long as each iterator&#x27;s source array has
+deterministic order (arrays are ordered, maps are not - see
+<a href="#iterating-over-maps">Iterating Over Maps</a> if you need to iterate over map data).</p>
 <div class="theme-admonition theme-admonition-important admonition_xJq3 alert alert--info"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 14 16"><path fill-rule="evenodd" d="M7 2.3c3.14 0 5.7 2.56 5.7 5.7s-2.56 5.7-5.7 5.7A5.71 5.71 0 0 1 1.3 8c0-3.14 2.56-5.7 5.7-5.7zM7 1C3.14 1 0 4.14 0 8s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm1 3H6v5h2V4zm0 6H6v2h2v-2z"></path></svg></span>important</div><div class="admonitionContent_BuS1"><p>If any iterator&#x27;s collection is empty, zero resources are created. This follows
 standard cartesian product behavior: <code>2 × 0 = 0</code>.</p></div></div>
-<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="supported-collection-types">Supported Collection Types<a href="#supported-collection-types" class="hash-link" aria-label="Direct link to Supported Collection Types" title="Direct link to Supported Collection Types" translate="no">​</a></h2>
-<p>The iterator expression can evaluate to arrays or maps from various sources:</p>
-<div class="theme-tabs-container tabs-container tabList__CuJ"><ul role="tablist" aria-orientation="horizontal" class="tabs"><li role="tab" tabindex="0" aria-selected="true" class="tabs__item tabItem_LNqP tabs__item--active">Instance Spec</li><li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_LNqP">Resource Spec</li><li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_LNqP">Resource Status</li><li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_LNqP">Array Literal</li><li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_LNqP">Map Literal</li></ul><div class="margin-top--md"><div role="tabpanel" class="tabItem_Ymn6"><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">spec</span>:<!-- -->
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="collection-sources">Collection Sources<a href="#collection-sources" class="hash-link" aria-label="Direct link to Collection Sources" title="Direct link to Collection Sources" translate="no">​</a></h2>
+<p>The iterator expression must evaluate to an array. Arrays can come from various sources:</p>
+<div class="theme-tabs-container tabs-container tabList__CuJ"><ul role="tablist" aria-orientation="horizontal" class="tabs"><li role="tab" tabindex="0" aria-selected="true" class="tabs__item tabItem_LNqP tabs__item--active">Instance Spec</li><li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_LNqP">Resource Spec</li><li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_LNqP">Resource Status</li><li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_LNqP">Array Literal</li></ul><div class="margin-top--md"><div role="tabpanel" class="tabItem_Ymn6"><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->  <span class="yamlKey_lCMJ">schema</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">regions</span>: <!-- -->&quot;<span class="schemaType_ZceW">[]string</span>&quot;<!-- -->
@@ -150,11 +167,13 @@ standard cartesian product behavior: <code>2 × 0 = 0</code>.</p></div></div>
 <!-- -->      <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">kind</span>: <!-- -->ConfigMap<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->          <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;config-&#x27; + region.item}</span></code></pre></div></div></div><div role="tabpanel" class="tabItem_Ymn6" hidden=""><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">resources</span>:<!-- -->
+<!-- -->          <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-config-&#x27; + region}</span></code></pre></div></div></div><div role="tabpanel" class="tabItem_Ymn6" hidden=""><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">resources</span>:<!-- -->
 <!-- -->  <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->database<!-- -->
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">apiVersion</span>: <!-- -->db.example.com/v1<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->Database<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-db&#x27;}</span>
 <!-- -->      <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">shards</span>:<!-- -->
 <!-- -->          <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->users<!-- -->
@@ -168,7 +187,7 @@ standard cartesian product behavior: <code>2 × 0 = 0</code>.</p></div></div>
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->CronJob<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;backup-&#x27; + shard.item.name}</span>
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-backup-&#x27; + shard.name}</span>
 <!-- -->      <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">schedule</span>: <!-- -->&quot;0 2 * * *&quot;<!-- -->
 <!-- -->        <span class="comment_cniX"># ...</span></code></pre></div></div></div><div role="tabpanel" class="tabItem_Ymn6" hidden=""><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">resources</span>:<!-- -->
@@ -176,6 +195,8 @@ standard cartesian product behavior: <code>2 × 0 = 0</code>.</p></div></div>
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">apiVersion</span>: <!-- -->kafka.example.com/v1<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->KafkaCluster<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-kafka&#x27;}</span>
 <!-- -->      <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">brokers</span>: <!-- -->3<!-- -->
 <!-- -->
@@ -185,34 +206,25 @@ standard cartesian product behavior: <code>2 × 0 = 0</code>.</p></div></div>
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->Service<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;kafka-broker-&#x27; + string(broker.index)}</span>
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-broker-&#x27; + string(broker.id)}</span>
 <!-- -->      <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">type</span>: <!-- -->ExternalName<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">externalName</span>: <span class="celExpression_MAYK">${broker.item.host}</span></code></pre></div></div></div><div role="tabpanel" class="tabItem_Ymn6" hidden=""><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">resources</span>:<!-- -->
+<!-- -->        <span class="yamlKey_lCMJ">externalName</span>: <span class="celExpression_MAYK">${broker.host}</span></code></pre></div></div></div><div role="tabpanel" class="tabItem_Ymn6" hidden=""><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">resources</span>:<!-- -->
 <!-- -->  <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->zoneConfigs<!-- -->
 <!-- -->    <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
 <!-- -->      <!-- -->- <span class="yamlKey_lCMJ">zone</span>: <span class="celExpression_MAYK">${[&quot;us-east-1a&quot;, &quot;us-east-1b&quot;, &quot;us-east-1c&quot;]}</span>
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->ConfigMap<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;config-&#x27; + zone.item}</span>
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-config-&#x27; + zone}</span>
 <!-- -->
 <!-- -->  <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->shards<!-- -->
 <!-- -->    <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->      <!-- -->- <span class="yamlKey_lCMJ">num</span>: <span class="celExpression_MAYK">${range(0, 3)}</span>  <span class="comment_cniX"># CEL function that returns [0, 1, 2]</span>
+<!-- -->      <!-- -->- <span class="yamlKey_lCMJ">shardNum</span>: <span class="celExpression_MAYK">${range(0, 3)}</span>  <span class="comment_cniX"># CEL function that returns [0, 1, 2]</span>
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->StatefulSet<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;db-shard-&#x27; + string(num.item)}</span></code></pre></div></div></div><div role="tabpanel" class="tabItem_Ymn6" hidden=""><div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="yamlKey_lCMJ">resources</span>:<!-- -->
-<!-- -->  <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->envConfigs<!-- -->
-<!-- -->    <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->      <!-- -->- <span class="yamlKey_lCMJ">env</span>: <span class="celExpression_MAYK">${{&quot;prod&quot;: &quot;us-east-1&quot;, &quot;staging&quot;: &quot;us-west-2&quot;}}</span>
-<!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->ConfigMap<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;config-&#x27; + env.key}</span>
-<!-- -->      <span class="yamlKey_lCMJ">data</span>:<!-- -->
-<!-- -->        <span class="yamlKey_lCMJ">region</span>: <span class="celExpression_MAYK">${env.value}</span></code></pre></div></div></div></div></div>
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-shard-&#x27; + string(shardNum)}</span></code></pre></div></div></div></div></div>
 <h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="referencing-collections">Referencing Collections<a href="#referencing-collections" class="hash-link" aria-label="Direct link to Referencing Collections" title="Direct link to Referencing Collections" translate="no">​</a></h2>
 <p>Other resources can reference a collection by its ID. The collection exposes
 all created resources as an array, which you can use with CEL functions like
@@ -221,18 +233,18 @@ all created resources as an array, which you can use with CEL functions like
 <p>Use CEL functions to aggregate collection data into a single resource:</p>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">worker</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;worker-&#x27; + name.item}</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + worker}</span>
 <!-- -->    <span class="comment_cniX"># ...</span>
 <!-- -->
 <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->summary<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->ConfigMap<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <!-- -->worker-summary<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-summary&#x27;}</span>
 <!-- -->    <span class="yamlKey_lCMJ">data</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">podNames</span>: <span class="celExpression_MAYK">${workerPods.map(p, p.metadata.name).join(&#x27;, &#x27;)}</span>
 <!-- -->      <span class="yamlKey_lCMJ">count</span>: <span class="celExpression_MAYK">${string(size(workerPods))}</span></code></pre></div></div>
@@ -240,22 +252,22 @@ all created resources as an array, which you can use with CEL functions like
 <p>One collection can iterate over another to create dependent resources:</p>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->databases<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">db</span>: <span class="celExpression_MAYK">${schema.spec.databases}</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">dbSpec</span>: <span class="celExpression_MAYK">${schema.spec.databases}</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">apiVersion</span>: <!-- -->db.example.com/v1<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Database<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${db.item.name}</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + dbSpec.name}</span>
 <!-- -->    <span class="yamlKey_lCMJ">spec</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">storage</span>: <span class="celExpression_MAYK">${db.item.storage}</span>
+<!-- -->      <span class="yamlKey_lCMJ">storage</span>: <span class="celExpression_MAYK">${dbSpec.storage}</span>
 <!-- -->
 <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->backupJobs<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">dbIndex</span>: <span class="celExpression_MAYK">${databases}</span>  <span class="comment_cniX"># iterate over the databases</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">db</span>: <span class="celExpression_MAYK">${databases}</span>  <span class="comment_cniX"># iterate over the collection</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->CronJob<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;backup-&#x27; + dbIndex}</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-backup-&#x27; + db.metadata.name}</span>
 <!-- -->    <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">schedule</span>: <!-- -->&quot;0 2 * * *&quot;<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">jobTemplate</span>:<!-- -->
@@ -266,7 +278,7 @@ all created resources as an array, which you can use with CEL functions like
 <!-- -->                <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->backup<!-- -->
 <!-- -->                  <span class="yamlKey_lCMJ">env</span>:<!-- -->
 <!-- -->                    <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->DB_HOST<!-- -->
-<!-- -->                      <span class="yamlKey_lCMJ">value</span>: <span class="celExpression_MAYK">${databases[dbIndex].status.endpoint}</span></code></pre></div></div>
+<!-- -->                      <span class="yamlKey_lCMJ">value</span>: <span class="celExpression_MAYK">${db.status.endpoint}</span></code></pre></div></div>
 <h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="dependency-behavior">Dependency Behavior<a href="#dependency-behavior" class="hash-link" aria-label="Direct link to Dependency Behavior" title="Direct link to Dependency Behavior" translate="no">​</a></h3>
 <p>Like references in templates, resource references in <code>forEach</code> expressions
 create edges in the dependency graph. Any reference between a resource and a
@@ -277,9 +289,11 @@ kro to wait for the referenced collection to be fully reconciled and ready
 <!-- -->  <span class="comment_cniX"># Collection A: creates multiple databases</span>
 <!-- -->  <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->databases<!-- -->
 <!-- -->    <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->      <!-- -->- <span class="yamlKey_lCMJ">db</span>: <span class="celExpression_MAYK">${schema.spec.databases}</span>
+<!-- -->      <!-- -->- <span class="yamlKey_lCMJ">dbSpec</span>: <span class="celExpression_MAYK">${schema.spec.databases}</span>
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->Database<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + dbSpec.name}</span>
 <!-- -->      <span class="comment_cniX"># ...</span>
 <!-- -->
 <!-- -->  <span class="comment_cniX"># Collection B: depends on Collection A</span>
@@ -289,6 +303,8 @@ kro to wait for the referenced collection to be fully reconciled and ready
 <!-- -->      <!-- -->- <span class="yamlKey_lCMJ">db</span>: <span class="celExpression_MAYK">${databases}</span>
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->CronJob<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-backup-&#x27; + db.metadata.name}</span>
 <!-- -->      <span class="comment_cniX"># ...</span>
 <!-- -->
 <!-- -->  <span class="comment_cniX"># Resource C: depends on Collection B</span>
@@ -296,6 +312,8 @@ kro to wait for the referenced collection to be fully reconciled and ready
 <!-- -->  <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->summary<!-- -->
 <!-- -->    <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">kind</span>: <!-- -->ConfigMap<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->        <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-summary&#x27;}</span>
 <!-- -->      <span class="yamlKey_lCMJ">data</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">backupCount</span>: <span class="celExpression_MAYK">${string(size(backupJobs))}</span></code></pre></div></div>
 <h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="readiness-with-collections">Readiness with Collections<a href="#readiness-with-collections" class="hash-link" aria-label="Direct link to Readiness with Collections" title="Direct link to Readiness with Collections" translate="no">​</a></h2>
@@ -304,13 +322,13 @@ ready. The expression can reference the collection by its ID to apply aggregate
 conditions across all created resources:</p>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">worker</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
 <!-- -->  <span class="kroKeyword_GbQ5">readyWhen</span>:<!-- -->
 <!-- -->    - <span class="celExpression_MAYK">${workerPods.all(w, w.status.phase == &#x27;Running&#x27;)}</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;worker-&#x27; + name.item}</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + worker}</span>
 <!-- -->    <span class="yamlKey_lCMJ">spec</span>:<!-- -->
 <!-- -->      <span class="yamlKey_lCMJ">containers</span>:<!-- -->
 <!-- -->        <!-- -->- <span class="yamlKey_lCMJ">name</span>: <!-- -->app<!-- -->
@@ -331,22 +349,22 @@ created. You cannot use <code>includeWhen</code> to exclude individual items:</p
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->backupJobs<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">includeWhen</span>: <span class="celExpression_MAYK">${schema.spec.backupsEnabled}</span>  <span class="comment_cniX"># all or nothing</span>
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">db</span>: <span class="celExpression_MAYK">${schema.spec.databases}</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">dbSpec</span>: <span class="celExpression_MAYK">${schema.spec.databases}</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->CronJob<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;backup-&#x27; + db.item.name}</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-backup-&#x27; + dbSpec.name}</span>
 <!-- -->    <span class="comment_cniX"># ...</span></code></pre></div></div>
 <p>To filter individual items from a collection, use <code>filter()</code> in the <code>forEach</code>
 expression:</p>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code>- <span class="kroKeyword_GbQ5">id</span>: <!-- -->backupJobs<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
 <!-- -->    <span class="comment_cniX"># Only iterate over databases that have backups enabled</span>
-<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">db</span>: <span class="celExpression_MAYK">${schema.spec.databases.filter(d, d.backupEnabled)}</span>
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">dbSpec</span>: <span class="celExpression_MAYK">${schema.spec.databases.filter(d, d.backupEnabled)}</span>
 <!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->CronJob<!-- -->
 <!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
-<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${&#x27;backup-&#x27; + db.item.name}</span>
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-backup-&#x27; + dbSpec.name}</span>
 <!-- -->    <span class="comment_cniX"># ...</span></code></pre></div></div>
 <h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="exposing-collection-data-in-instance-status">Exposing Collection Data in Instance Status<a href="#exposing-collection-data-in-instance-status" class="hash-link" aria-label="Direct link to Exposing Collection Data in Instance Status" title="Direct link to Exposing Collection Data in Instance Status" translate="no">​</a></h2>
 <p>Status expressions can reference collections to compute aggregate values. This
@@ -366,10 +384,65 @@ resource&#x27;s status:</p>
 <!-- -->  <span class="yamlKey_lCMJ">resources</span>:<!-- -->
 <!-- -->    <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
 <!-- -->      <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
-<!-- -->        <!-- -->- <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
+<!-- -->        <!-- -->- <span class="yamlKey_lCMJ">worker</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
 <!-- -->      <span class="kroKeyword_GbQ5">template</span>:<!-- -->
 <!-- -->        <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
+<!-- -->        <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->          <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + worker}</span>
 <!-- -->        <span class="comment_cniX"># ...</span></code></pre></div></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="collection-lifecycle">Collection Lifecycle<a href="#collection-lifecycle" class="hash-link" aria-label="Direct link to Collection Lifecycle" title="Direct link to Collection Lifecycle" translate="no">​</a></h2>
+<p>Collections automatically stay in sync with their source data. When the source
+array changes, kro creates, updates, or deletes resources to match.</p>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="scaling-up">Scaling Up<a href="#scaling-up" class="hash-link" aria-label="Direct link to Scaling Up" title="Direct link to Scaling Up" translate="no">​</a></h3>
+<p>When items are added to the source array, kro creates new resources:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#1f2937;--prism-background-color:#fafafa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#1f2937;background-color:#fafafa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#1f2937"><span class="token comment" style="color:#9ca3af"># Instance spec change:</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># workers: [&quot;alice&quot;, &quot;bob&quot;] → [&quot;alice&quot;, &quot;bob&quot;, &quot;charlie&quot;]</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af">#</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># Result: kro creates a new pod for &quot;charlie&quot;</span><br></span></code></pre></div></div>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="scaling-down">Scaling Down<a href="#scaling-down" class="hash-link" aria-label="Direct link to Scaling Down" title="Direct link to Scaling Down" translate="no">​</a></h3>
+<p>When items are removed from the source array, kro automatically deletes the
+corresponding resources:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#1f2937;--prism-background-color:#fafafa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#1f2937;background-color:#fafafa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#1f2937"><span class="token comment" style="color:#9ca3af"># Instance spec change:</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># workers: [&quot;alice&quot;, &quot;bob&quot;, &quot;charlie&quot;] → [&quot;alice&quot;]</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af">#</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># Result: kro deletes pods for &quot;bob&quot; and &quot;charlie&quot;</span><br></span></code></pre></div></div>
+<p>This cleanup happens automatically through kro&#x27;s applyset mechanism - orphaned
+resources are pruned on each reconciliation.</p>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="empty-collections">Empty Collections<a href="#empty-collections" class="hash-link" aria-label="Direct link to Empty Collections" title="Direct link to Empty Collections" translate="no">​</a></h3>
+<p>An empty array results in zero resources - this is not an error:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#1f2937;--prism-background-color:#fafafa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#1f2937;background-color:#fafafa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#1f2937"><span class="token comment" style="color:#9ca3af"># workers: []</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># Result: zero pods created (collection exists but is empty)</span><br></span></code></pre></div></div>
+<p>This is useful for optional features that can be enabled by adding items to an
+initially empty array.</p>
+<div class="theme-admonition theme-admonition-important admonition_xJq3 alert alert--info"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 14 16"><path fill-rule="evenodd" d="M7 2.3c3.14 0 5.7 2.56 5.7 5.7s-2.56 5.7-5.7 5.7A5.71 5.71 0 0 1 1.3 8c0-3.14 2.56-5.7 5.7-5.7zM7 1C3.14 1 0 4.14 0 8s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm1 3H6v5h2V4zm0 6H6v2h2v-2z"></path></svg></span>important</div><div class="admonitionContent_BuS1"><p>If any iterator in a cartesian product is empty, zero resources are created.
+For example, <code>regions: [&quot;us-east&quot;]</code> × <code>tiers: []</code> = zero deployments.</p></div></div>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="drift-detection">Drift Detection<a href="#drift-detection" class="hash-link" aria-label="Direct link to Drift Detection" title="Direct link to Drift Detection" translate="no">​</a></h3>
+<p>kro continuously reconciles collection resources to match the desired state. If
+a resource is modified externally (drift), kro restores it:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#1f2937;--prism-background-color:#fafafa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#1f2937;background-color:#fafafa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#1f2937"><span class="token comment" style="color:#9ca3af"># 1. kro creates ConfigMap with data.prefix: &quot;original&quot;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># 2. Someone manually changes data.prefix to &quot;MODIFIED&quot;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#1f2937"><span class="token plain"></span><span class="token comment" style="color:#9ca3af"># 3. kro detects the drift and restores data.prefix to &quot;original&quot;</span><br></span></code></pre></div></div>
+<p>This applies to all fields that kro manages. Fields added by other controllers
+(not in kro&#x27;s template) are preserved.</p>
+<hr>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="how-collections-work">How Collections Work<a href="#how-collections-work" class="hash-link" aria-label="Direct link to How Collections Work" title="Direct link to How Collections Work" translate="no">​</a></h2>
+<p>This section explains the internal mechanics for those who want to understand
+what happens under the hood. You don&#x27;t need this to use collections effectively.</p>
+<p>When you add <code>forEach</code> to a resource, kro treats that resource block as a
+template for multiple resources rather than a single one.</p>
+<p><strong>At RGD validation time (static analysis)</strong>, kro analyzes the <code>forEach</code>
+expressions to determine the element types. If <code>schema.spec.workers</code> is
+<code>[]string</code>, kro knows each iteration yields a string and types the iterator
+variable accordingly. This enables <a href="/kro/next/docs/concepts/rgd/static-type-checking">static type checking</a>
+of expressions inside the template before any resources are created.</p>
+<p><strong>At instance reconciliation time (runtime)</strong>, when the reconciler reaches a
+collection node in the dependency graph:</p>
+<ol>
+<li>Evaluates each forEach CEL expression to get the current collections</li>
+<li>Expands into multiple resource operations - one per element (or combination)</li>
+<li>Compares against existing resources and creates, updates, or deletes as
+needed</li>
+<li>Evaluates <code>readyWhen</code> (if specified) across all collection resources before
+proceeding to dependent nodes</li>
+</ol>
+<p>Each resource in the collection is tracked independently. If one resource fails
+to reconcile, the others continue - kro doesn&#x27;t require all-or-nothing success
+within a collection.</p>
+<div class="theme-admonition theme-admonition-note admonition_xJq3 alert alert--secondary"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 14 16"><path fill-rule="evenodd" d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"></path></svg></span>note</div><div class="admonitionContent_BuS1"><p>In kro, each entry in <code>spec.resources</code> is a node in the dependency graph. A
+collection (a resource with <code>forEach</code>) is also a single node in the graph - it
+expands into multiple resources at runtime, but dependencies treat it as one
+unit.</p></div></div>
 <h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="next-steps">Next Steps<a href="#next-steps" class="hash-link" aria-label="Direct link to Next Steps" title="Direct link to Next Steps" translate="no">​</a></h2>
 <ul>
 <li><strong><a href="/kro/next/docs/concepts/rgd/resource-definitions/external-references">External References</a></strong> - Reference existing
@@ -378,6 +451,6 @@ resources not managed by kro</li>
 like <code>range()</code>, <code>filter()</code>, and <code>map()</code></li>
 <li><strong><a href="/kro/next/docs/concepts/rgd/dependencies-ordering">Dependencies &amp; Ordering</a></strong> - Understand
 how collections affect the dependency graph</li>
-</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"><a href="https://github.com/kubernetes-sigs/kro/tree/main/website/docs/docs/concepts/rgd/02-resource-definitions/04-collections.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/kro/next/docs/concepts/rgd/resource-definitions/readiness"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Readiness</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/kro/next/docs/concepts/rgd/resource-definitions/external-references"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">External References</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#basic-example" class="table-of-contents__link toc-highlight">Basic Example</a></li><li><a href="#how-foreach-works" class="table-of-contents__link toc-highlight">How forEach Works</a></li><li><a href="#foreach-syntax" class="table-of-contents__link toc-highlight">forEach Syntax</a></li><li><a href="#iteration-context-variables" class="table-of-contents__link toc-highlight">Iteration Context Variables</a><ul><li><a href="#iterating-over-arrays" class="table-of-contents__link toc-highlight">Iterating Over Arrays</a></li><li><a href="#iterating-over-maps" class="table-of-contents__link toc-highlight">Iterating Over Maps</a></li></ul></li><li><a href="#multiple-iterators-cartesian-product" class="table-of-contents__link toc-highlight">Multiple Iterators (Cartesian Product)</a></li><li><a href="#supported-collection-types" class="table-of-contents__link toc-highlight">Supported Collection Types</a></li><li><a href="#referencing-collections" class="table-of-contents__link toc-highlight">Referencing Collections</a><ul><li><a href="#in-a-resource" class="table-of-contents__link toc-highlight">In a Resource</a></li><li><a href="#in-another-collection" class="table-of-contents__link toc-highlight">In Another Collection</a></li><li><a href="#dependency-behavior" class="table-of-contents__link toc-highlight">Dependency Behavior</a></li></ul></li><li><a href="#readiness-with-collections" class="table-of-contents__link toc-highlight">Readiness with Collections</a><ul><li><a href="#aggregate-readiness-patterns" class="table-of-contents__link toc-highlight">Aggregate Readiness Patterns</a></li></ul></li><li><a href="#conditional-collections" class="table-of-contents__link toc-highlight">Conditional Collections</a></li><li><a href="#exposing-collection-data-in-instance-status" class="table-of-contents__link toc-highlight">Exposing Collection Data in Instance Status</a></li><li><a href="#next-steps" class="table-of-contents__link toc-highlight">Next Steps</a></li></ul></div></div></div></div></main></div></div></div><section class="kroFooter_cB_W"><p class="kroFooterText_sBXB">Brought to you with ♥ by<!-- --> <a href="https://github.com/kubernetes/community/tree/master/sig-cloud-provider" target="_blank" rel="noopener noreferrer">SIG Cloud Provider</a></p></section><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/kro/docs/overview">Tutorial</a></li><li class="footer__item"><a class="footer__link-item" href="/kro/examples/">Examples</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Community</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://kubernetes.slack.com/archives/C081TMY9D6Y" target="_blank" rel="noopener noreferrer" class="footer__link-item">Slack<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/kubernetes-sigs/kro/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" class="footer__link-item">Contribution Guide<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/kubernetes-sigs/kro" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://www.youtube.com/channel/UCUlcI3NYq9ehl5wsdfbJzSA" target="_blank" rel="noopener noreferrer" class="footer__link-item">YouTube<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">kro is a subproject of Kubernetes SIG Cloud Provider. Kubernetes is a CNCF graduated project.</div></div></div></footer><script defer="" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;85e669833a874cdd938772c6e459b33e&quot;}"></script></div>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"><a href="https://github.com/kubernetes-sigs/kro/tree/main/website/docs/docs/concepts/rgd/02-resource-definitions/04-collections.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/kro/next/docs/concepts/rgd/resource-definitions/readiness"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Readiness</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/kro/next/docs/concepts/rgd/resource-definitions/external-references"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">External References</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#basic-example" class="table-of-contents__link toc-highlight">Basic Example</a></li><li><a href="#foreach-syntax" class="table-of-contents__link toc-highlight">forEach Syntax</a><ul><li><a href="#iterating-over-maps" class="table-of-contents__link toc-highlight">Iterating Over Maps</a></li></ul></li><li><a href="#iterator-variables" class="table-of-contents__link toc-highlight">Iterator Variables</a><ul><li><a href="#resource-naming" class="table-of-contents__link toc-highlight">Resource Naming</a></li></ul></li><li><a href="#multiple-iterators-cartesian-product" class="table-of-contents__link toc-highlight">Multiple Iterators (Cartesian Product)</a><ul><li><a href="#combination-order" class="table-of-contents__link toc-highlight">Combination Order</a></li></ul></li><li><a href="#collection-sources" class="table-of-contents__link toc-highlight">Collection Sources</a></li><li><a href="#referencing-collections" class="table-of-contents__link toc-highlight">Referencing Collections</a><ul><li><a href="#in-a-resource" class="table-of-contents__link toc-highlight">In a Resource</a></li><li><a href="#in-another-collection" class="table-of-contents__link toc-highlight">In Another Collection</a></li><li><a href="#dependency-behavior" class="table-of-contents__link toc-highlight">Dependency Behavior</a></li></ul></li><li><a href="#readiness-with-collections" class="table-of-contents__link toc-highlight">Readiness with Collections</a><ul><li><a href="#aggregate-readiness-patterns" class="table-of-contents__link toc-highlight">Aggregate Readiness Patterns</a></li></ul></li><li><a href="#conditional-collections" class="table-of-contents__link toc-highlight">Conditional Collections</a></li><li><a href="#exposing-collection-data-in-instance-status" class="table-of-contents__link toc-highlight">Exposing Collection Data in Instance Status</a></li><li><a href="#collection-lifecycle" class="table-of-contents__link toc-highlight">Collection Lifecycle</a><ul><li><a href="#scaling-up" class="table-of-contents__link toc-highlight">Scaling Up</a></li><li><a href="#scaling-down" class="table-of-contents__link toc-highlight">Scaling Down</a></li><li><a href="#empty-collections" class="table-of-contents__link toc-highlight">Empty Collections</a></li><li><a href="#drift-detection" class="table-of-contents__link toc-highlight">Drift Detection</a></li></ul></li><li><a href="#how-collections-work" class="table-of-contents__link toc-highlight">How Collections Work</a></li><li><a href="#next-steps" class="table-of-contents__link toc-highlight">Next Steps</a></li></ul></div></div></div></div></main></div></div></div><section class="kroFooter_cB_W"><p class="kroFooterText_sBXB">Brought to you with ♥ by<!-- --> <a href="https://github.com/kubernetes/community/tree/master/sig-cloud-provider" target="_blank" rel="noopener noreferrer">SIG Cloud Provider</a></p></section><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/kro/docs/overview">Tutorial</a></li><li class="footer__item"><a class="footer__link-item" href="/kro/examples/">Examples</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Community</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://kubernetes.slack.com/archives/C081TMY9D6Y" target="_blank" rel="noopener noreferrer" class="footer__link-item">Slack<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/kubernetes-sigs/kro/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" class="footer__link-item">Contribution Guide<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/kubernetes-sigs/kro" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://www.youtube.com/channel/UCUlcI3NYq9ehl5wsdfbJzSA" target="_blank" rel="noopener noreferrer" class="footer__link-item">YouTube<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">kro is a subproject of Kubernetes SIG Cloud Provider. Kubernetes is a CNCF graduated project.</div></div></div></footer><script defer="" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;85e669833a874cdd938772c6e459b33e&quot;}"></script></div>
 </body>
 </html>
