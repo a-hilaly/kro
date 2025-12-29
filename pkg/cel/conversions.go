@@ -17,11 +17,11 @@ package cel
 import (
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/common/types/traits"
 )
 
 var (
@@ -29,7 +29,9 @@ var (
 	ErrUnsupportedType = errors.New("unsupported type")
 )
 
-// GoNativeType transforms CEL output into corresponding Go types
+// GoNativeType transforms CEL output into corresponding Go types.
+// It recursively converts nested structures (lists and maps) to ensure
+// all ref.Val types are converted to native Go types that can be JSON marshaled.
 func GoNativeType(v ref.Val) (interface{}, error) {
 	switch v.Type() {
 	case types.BoolType:
@@ -43,9 +45,9 @@ func GoNativeType(v ref.Val) (interface{}, error) {
 	case types.StringType:
 		return v.Value().(string), nil
 	case types.ListType:
-		return v.ConvertToNative(reflect.TypeOf([]interface{}{}))
+		return convertList(v.(traits.Lister))
 	case types.MapType:
-		return v.ConvertToNative(reflect.TypeOf(map[string]interface{}{}))
+		return convertMap(v.(traits.Mapper))
 	case types.OptionalType:
 		opt := v.(*types.Optional)
 		if !opt.HasValue() {
@@ -58,6 +60,45 @@ func GoNativeType(v ref.Val) (interface{}, error) {
 		// For types we can't convert, return as is with an error
 		return v.Value(), fmt.Errorf("%w: %v", ErrUnsupportedType, v.Type())
 	}
+}
+
+// convertList converts a CEL list to a native Go slice, recursively converting elements.
+func convertList(lister traits.Lister) ([]interface{}, error) {
+	size := lister.Size().Value().(int64)
+	result := make([]interface{}, size)
+	for i := int64(0); i < size; i++ {
+		elem := lister.Get(types.Int(i))
+		native, err := GoNativeType(elem)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = native
+	}
+	return result, nil
+}
+
+// convertMap converts a CEL map to a native Go map, recursively converting values.
+func convertMap(mapper traits.Mapper) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	iter := mapper.Iterator()
+	for iter.HasNext().Value().(bool) {
+		key := iter.Next()
+		nativeKey, err := GoNativeType(key)
+		if err != nil {
+			return nil, err
+		}
+		keyStr, ok := nativeKey.(string)
+		if !ok {
+			return nil, fmt.Errorf("map key is not a string: %T", nativeKey)
+		}
+		val := mapper.Get(key)
+		nativeVal, err := GoNativeType(val)
+		if err != nil {
+			return nil, err
+		}
+		result[keyStr] = nativeVal
+	}
+	return result, nil
 }
 
 // IsBoolType checks if the given ref.Val is of type BoolType
