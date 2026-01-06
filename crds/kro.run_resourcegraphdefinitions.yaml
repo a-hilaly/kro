@@ -117,18 +117,20 @@ spec:
                       type: object
                     forEach:
                       description: |-
-                        ForEach defines iterators that expand this resource into a collection of resources.
-                        When forEach is specified, kro creates one resource instance for each element
-                        (or combination of elements when multiple iterators are specified) in the collections.
-                        Each iterator binds a variable name to a CEL expression that evaluates to an array.
-                        Use the iterator variable directly in template expressions (e.g., ${region}).
+                        ForEach expands this resource into a collection of resources.
+                        Each entry binds a variable name to a CEL expression that evaluates to an array.
+                        kro creates one resource instance for each element in the array.
+                        With multiple entries, kro creates the cartesian product of all combinations.
+                        Use the variable directly in template expressions (e.g., ${region}).
+                        Example: [{"region": "${schema.spec.regions}"}, {"tier": "${schema.spec.tiers}"}]
                       items:
                         additionalProperties:
                           type: string
                         description: |-
-                          ForEachIterator defines a single iterator in a forEach block.
-                          Each iterator is a map with exactly one entry where the key is the variable name
+                          ForEachDimension defines a single expansion axis in a forEach block.
+                          Each dimension is a map with exactly one entry where the key is the variable name
                           and the value is the CEL expression. Example: {"region": "${schema.spec.regions}"}
+                          Multiple dimensions create a cartesian product of expansions.
                         maxProperties: 1
                         minProperties: 1
                         type: object
