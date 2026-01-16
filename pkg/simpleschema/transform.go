@@ -140,6 +140,12 @@ func extractDependenciesFromMap(obj interface{}) (dependencies []string, err err
 }
 
 func handleStringType(v string, dependencies sets.Set[string]) error {
+
+	// Fix: Strip markers (e.g. "Type | required=true" -> "Type")
+	if strings.Contains(v, "|") {
+		parts := strings.Split(v, "|")
+		v = strings.TrimSpace(parts[0])
+	}
 	// Check if the value is an atomic type
 	if isAtomicType(v) {
 		return nil
