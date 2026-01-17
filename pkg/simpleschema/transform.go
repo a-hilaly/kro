@@ -203,13 +203,17 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) (err erro
 			for key, elem := range v {
 				print(key)
 				if nestedMap, ok := elem.(map[string]interface{}); ok {
-					parseMap(nestedMap, dependencies)
+					if err := parseMap(nestedMap, dependencies); err != nil {
+						return err
+					}
 				} else {
 					return fmt.Errorf("unexpected type in slice: %T", elem)
 				}
 			}
 		case string:
-			handleStringType(v, dependencies)
+			if err := handleStringType(v, dependencies); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
