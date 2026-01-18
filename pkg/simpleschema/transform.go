@@ -87,8 +87,7 @@ func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 		}
 
 		// Add dependencies to the DAG and check for cycles
-		err = dagInstance.AddDependencies(k, dependencies)
-		if err != nil {
+		if err := dagInstance.AddDependencies(k, dependencies); err != nil {
 			var cycleErr *dag.CycleError[string]
 			if errors.As(err, &cycleErr) {
 				return fmt.Errorf("failed to load type %s due to cyclic dependency. Please remove the cyclic dependency: %w", k, err)
@@ -106,7 +105,7 @@ func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 
 	// Build the pre-defined types from the sorted DAG
 	for _, vertex := range orderedVertexes {
-		objValueAtKey, _ := obj[vertex]
+		objValueAtKey := obj[vertex]
 		objMap := map[string]interface{}{
 			vertex: objValueAtKey,
 		}
@@ -143,7 +142,7 @@ func handleStringType(v string, dependencies sets.Set[string]) error {
 
 	// Fix: Strip markers (e.g. "Type | required=true" -> "Type")
 	if strings.Contains(v, "|") {
-		parts := strings.Split(v, "|")
+		parts := strings.SplitN(v, "|", 2)
 		v = strings.TrimSpace(parts[0])
 	}
 	// Check if the value is an atomic type
@@ -181,7 +180,7 @@ func handleStringType(v string, dependencies sets.Set[string]) error {
 
 	// If the type is object, we do not add any dependency
 	// As unstructured objects are not validated https://kro.run/docs/concepts/simple-schema#unstructured-objects
-	if isObjectType(v) {
+	if v == "object" {
 		return nil
 	}
 	// At this point, we have a new custom type, we add it as dependency

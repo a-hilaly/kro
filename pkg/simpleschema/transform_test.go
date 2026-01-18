@@ -273,7 +273,6 @@ func TestBuildOpenAPISchema(t *testing.T) {
 				Properties: map[string]extv1.JSONSchemaProps{
 					"matrix": {
 						Type: "array",
-
 						Items: &extv1.JSONSchemaPropsOrArray{
 							Schema: &extv1.JSONSchemaProps{
 								Type: "array",
@@ -1211,6 +1210,67 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 			},
 			want:    map[string]predefinedType{},
 			wantErr: true,
+		},
+		{
+			name: "Nested cross-references",
+			obj: map[string]interface{}{
+				"Service": map[string]interface{}{
+					"target": "Deployment",
+				},
+				"Deployment": map[string]interface{}{
+					"config": "ConfigMap | required=true",
+				},
+				"ConfigMap": map[string]interface{}{
+					"data": "string",
+				},
+			},
+			want: map[string]predefinedType{
+				"ConfigMap": {
+					Schema: extv1.JSONSchemaProps{
+						Type: "object",
+						Properties: map[string]extv1.JSONSchemaProps{
+							"data": {Type: "string"},
+						},
+					},
+					Required: false,
+				},
+				"Deployment": {
+					Schema: extv1.JSONSchemaProps{
+						Type: "object",
+						Properties: map[string]extv1.JSONSchemaProps{
+							"config": {
+								Type: "object",
+								Properties: map[string]extv1.JSONSchemaProps{
+									"data": {Type: "string"},
+								},
+							},
+						},
+						Required: []string{"config"},
+					},
+					Required: false,
+				},
+				"Service": {
+					Schema: extv1.JSONSchemaProps{
+						Type: "object",
+						Properties: map[string]extv1.JSONSchemaProps{
+							"target": {
+								Type: "object",
+								Properties: map[string]extv1.JSONSchemaProps{
+									"config": {
+										Type: "object",
+										Properties: map[string]extv1.JSONSchemaProps{
+											"data": {Type: "string"},
+										},
+									},
+								},
+								Required: []string{"config"},
+							},
+						},
+					},
+					Required: false,
+				},
+			},
+			wantErr: false,
 		},
 	}
 
