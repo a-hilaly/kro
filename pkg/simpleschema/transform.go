@@ -127,21 +127,30 @@ func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 func extractDependenciesFromMap(obj interface{}) (dependencies []string, err error) {
 	dependenciesSet := sets.Set[string]{}
 
-	// Extract dependencies using a helper function
-	if rootMap, ok := obj.(map[string]interface{}); ok {
-		err := parseMap(rootMap, dependenciesSet)
-		if err != nil {
+	switch t := obj.(type) {
+	case map[string]interface{}:
+		if err := parseMap(t, dependenciesSet); err != nil {
 			return nil, err
 		}
+	case string:
+		// Handle Type Aliases (e.g., "MyType": "string")
+		if err := handleStringType(t, dependenciesSet); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("pre-defined type must be an object or string alias, got %T", obj)
 	}
+
 	return dependenciesSet.UnsortedList(), nil
 }
 
 func handleStringType(v string, dependencies sets.Set[string]) error {
 	// Fix: Strip markers (e.g. "Type | required=true" -> "Type")
-	if strings.Contains(v, "|") {
-		parts := strings.SplitN(v, "|", 2)
-		v = strings.TrimSpace(parts[0])
+	// We use parseFieldSchema helper to ensure consistency with schema parsing logic.
+	// Note: parseFieldSchema returns (type, markers, error)
+	v, _, err := parseFieldSchema(v)
+	if err != nil {
+		return fmt.Errorf("failed to parse markers from string type %s: %w", v, err)
 	}
 
 	// Check if the value is an atomic type
@@ -193,16 +202,15 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) (err erro
 				return err
 			}
 		case []interface{}:
-			// Handle slices of types (e.g., []string or [][nested type])
+			// Handle slices of types (e.g., []string)
+			// Note: We do NOT recurse into maps inside slices (e.g. []map[...]) because
+			// inline objects in lists are not supported in Simple Schema.
+			// We only check for strings (references or atomics) inside the list.
 			for _, elem := range v {
-				if nestedMap, ok := elem.(map[string]interface{}); ok {
-					if err := parseMap(nestedMap, dependencies); err != nil {
+				if str, ok := elem.(string); ok {
+					if err := handleStringType(str, dependencies); err != nil {
 						return err
 					}
-				} else {
-					// For simple types in slices within the map structure, we generally
-					// rely on the schema parsing, but if mixed types appear, we warn or error.
-					// For dependency extraction of the structure itself, we continue.
 				}
 			}
 		case string:
