@@ -1272,6 +1272,14 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "Invalid type definition (not object or string)",
+			obj: map[string]interface{}{
+				"MyType": 12345, // Invalid: strict check should catch this
+			},
+			want:    map[string]predefinedType{},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
