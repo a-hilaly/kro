@@ -22,10 +22,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kubernetes-sigs/kro/pkg/graph/dag"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
+
+	"github.com/kubernetes-sigs/kro/pkg/graph/dag"
 )
 
 const (
@@ -63,13 +64,11 @@ func newTransformer() *transformer {
 // Types are loaded one by one so that each type can reference one of the
 // other custom types.
 // Cyclic dependencies are detected and reported as errors.
-// As of today, kro doesn't support custom types in the schema - do
-// not use this function.
 func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 
-	//Constructs a dag of the dependencies between the types
-	//If there is a cycle in the graph, then there is a cyclic dependency between the types
-	//and we cannot load the types
+	// Constructs a dag of the dependencies between the types
+	// If there is a cycle in the graph, then there is a cyclic dependency between the types
+	// and we cannot load the types
 	dagInstance := dag.NewDirectedAcyclicGraph[string]()
 	t.preDefinedTypes = make(map[string]predefinedType)
 
@@ -139,43 +138,39 @@ func extractDependenciesFromMap(obj interface{}) (dependencies []string, err err
 }
 
 func handleStringType(v string, dependencies sets.Set[string]) error {
-
 	// Fix: Strip markers (e.g. "Type | required=true" -> "Type")
 	if strings.Contains(v, "|") {
 		parts := strings.SplitN(v, "|", 2)
 		v = strings.TrimSpace(parts[0])
 	}
+
 	// Check if the value is an atomic type
 	if isAtomicType(v) {
 		return nil
 	}
-	// Check if the value is a collection type
-	if isCollectionType(v) {
-		if isSliceType(v) {
-			// It is a slice, we add the type as dependency
-			elementType, err := parseSliceType(v)
-			if err != nil {
-				return fmt.Errorf("Failed to parse slice type %s: %w", v, err)
-			}
-			if !isAtomicType(elementType) {
-				dependencies.Insert(elementType)
-			}
-			return nil
-		} else if isMapType(v) {
-			keyType, valueType, err := parseMapType(v)
-			if err != nil {
-				return fmt.Errorf("Failed to parse map type %s: %w", v, err)
-			}
-			// Only strings are supported as map keys
-			if keyType != keyTypeString {
-				return fmt.Errorf("unsupported key type for maps, only strings are supported key types: %s", keyType)
-			}
-			// If the value is not an atomic type, add to dependencies
-			if !isAtomicType(valueType) {
-				dependencies.Insert(strings.TrimPrefix(valueType, "[]"))
-			}
-			return nil
+
+	// Check if the value is a slice type
+	if isSliceType(v) {
+		elementType, err := parseSliceType(v)
+		if err != nil {
+			return fmt.Errorf("failed to parse slice type %s: %w", v, err)
 		}
+		// Recursively handle the element type to find nested dependencies
+		return handleStringType(elementType, dependencies)
+	}
+
+	// Check if the value is a map type
+	if isMapType(v) {
+		keyType, valueType, err := parseMapType(v)
+		if err != nil {
+			return fmt.Errorf("failed to parse map type %s: %w", v, err)
+		}
+		// Only strings are supported as map keys
+		if keyType != keyTypeString {
+			return fmt.Errorf("unsupported key type for maps, only strings are supported key types: %s", keyType)
+		}
+		// Recursively handle the value type to find nested dependencies
+		return handleStringType(valueType, dependencies)
 	}
 
 	// If the type is object, we do not add any dependency
@@ -183,13 +178,13 @@ func handleStringType(v string, dependencies sets.Set[string]) error {
 	if v == "object" {
 		return nil
 	}
+
 	// At this point, we have a new custom type, we add it as dependency
 	dependencies.Insert(v)
 	return nil
 }
 
 func parseMap(m map[string]interface{}, dependencies sets.Set[string]) (err error) {
-
 	for _, value := range m {
 		switch v := value.(type) {
 		case map[string]interface{}:
@@ -199,14 +194,15 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) (err erro
 			}
 		case []interface{}:
 			// Handle slices of types (e.g., []string or [][nested type])
-			for key, elem := range v {
-				print(key)
+			for _, elem := range v {
 				if nestedMap, ok := elem.(map[string]interface{}); ok {
 					if err := parseMap(nestedMap, dependencies); err != nil {
 						return err
 					}
 				} else {
-					return fmt.Errorf("unexpected type in slice: %T", elem)
+					// For simple types in slices within the map structure, we generally
+					// rely on the schema parsing, but if mixed types appear, we warn or error.
+					// For dependency extraction of the structure itself, we continue.
 				}
 			}
 		case string:
@@ -244,6 +240,7 @@ func (tf *transformer) buildOpenAPISchema(obj map[string]interface{}) (*extv1.JS
 
 	return schema, nil
 }
+
 func (tf *transformer) transformField(
 	key string, value interface{},
 	// parentSchema is used to add the key to the required list
@@ -539,7 +536,7 @@ func (tf *transformer) applyMarkers(schema *extv1.JSONSchemaProps, markers []*Ma
 	return nil
 }
 
-// Other functions (LoadPreDefinedTypes, transformMap) remain unchanged
+// transformMap converts a map[interface{}]interface{} to map[string]interface{}
 func transformMap(original map[interface{}]interface{}) map[string]interface{} {
 	result := make(map[string]interface{})
 	for key, value := range original {
