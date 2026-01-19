@@ -1221,7 +1221,7 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 					"config": "ConfigMap | required=true",
 				},
 				"ConfigMap": map[string]interface{}{
-					"data": "string",
+					"data": "string | description=somedescription",
 				},
 			},
 			want: map[string]predefinedType{
@@ -1229,7 +1229,7 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 					Schema: extv1.JSONSchemaProps{
 						Type: "object",
 						Properties: map[string]extv1.JSONSchemaProps{
-							"data": {Type: "string"},
+							"data": {Type: "string", Description: "somedescription"},
 						},
 					},
 					Required: false,
@@ -1241,7 +1241,7 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 							"config": {
 								Type: "object",
 								Properties: map[string]extv1.JSONSchemaProps{
-									"data": {Type: "string"},
+									"data": {Type: "string", Description: "somedescription"},
 								},
 							},
 						},
@@ -1259,7 +1259,7 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 									"config": {
 										Type: "object",
 										Properties: map[string]extv1.JSONSchemaProps{
-											"data": {Type: "string"},
+											"data": {Type: "string", Description: "somedescription"},
 										},
 									},
 								},
