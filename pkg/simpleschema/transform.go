@@ -154,6 +154,12 @@ func handleStringType(v string, dependencies sets.Set[string]) error {
 	}
 	v = typeStr
 
+	return processParsedType(v, dependencies)
+}
+
+// processParsedType checks if a type is atomic, collection, object, or a custom type reference.
+// It recursively processes nested types and adds custom type references to the dependencies set.
+func processParsedType(v string, dependencies sets.Set[string]) error {
 	// Check if the value is an atomic type
 	if isAtomicType(v) {
 		return nil
@@ -166,7 +172,7 @@ func handleStringType(v string, dependencies sets.Set[string]) error {
 			return fmt.Errorf("failed to parse slice type %s: %w", v, err)
 		}
 		// Recursively handle the element type to find nested dependencies
-		return handleStringType(elementType, dependencies)
+		return processParsedType(elementType, dependencies)
 	}
 
 	// Check if the value is a map type
@@ -180,11 +186,11 @@ func handleStringType(v string, dependencies sets.Set[string]) error {
 			return fmt.Errorf("unsupported key type for maps, only strings are supported key types: %s", keyType)
 		}
 		// Recursively handle the value type to find nested dependencies
-		return handleStringType(valueType, dependencies)
+		return processParsedType(valueType, dependencies)
 	}
 
 	// If the type is object, we do not add any dependency
-	// As unstructured objects are not validated [https://kro.run/docs/concepts/simple-schema#unstructured-objects](https://kro.run/docs/concepts/simple-schema#unstructured-objects)
+	// As unstructured objects are not validated https://kro.run/docs/concepts/simple-schema#unstructured-objects
 	if v == "object" {
 		return nil
 	}
@@ -204,9 +210,10 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) (err erro
 			}
 		case []interface{}:
 			// Handle slices of types (e.g., []string)
-			// Note: We do NOT recurse into maps inside slices (e.g. []map[...]) because
-			// inline objects in lists are not supported in Simple Schema.
-			// We only check for strings (references or atomics) inside the list.
+			// According to Simple Schema specification, inline objects in lists are not allowed.
+			// See: https://kro.run/api/specifications/simple-schema
+			// Therefore, we only process string elements (type references and atomic types).
+			// We skip non-string elements since structured types cannot be defined inline.
 			for _, elem := range v {
 				if str, ok := elem.(string); ok {
 					if err := handleStringType(str, dependencies); err != nil {
@@ -514,8 +521,8 @@ func (tf *transformer) applyMarkers(schema *extv1.JSONSchemaProps, markers []*Ma
 				return fmt.Errorf("uniqueItems marker is only valid for array types, got type: %s", schema.Type)
 			case isUnique:
 				// Always set x-kubernetes-list-type to "set" when uniqueItems is true
-				// [https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions)
-				// [https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become](https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become)
+				// https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions
+				// https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become
 				schema.XListType = ptr.To("set")
 			default:
 				// ignore
