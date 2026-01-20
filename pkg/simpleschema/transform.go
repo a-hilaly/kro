@@ -145,13 +145,14 @@ func extractDependenciesFromMap(obj interface{}) (dependencies []string, err err
 }
 
 func handleStringType(v string, dependencies sets.Set[string]) error {
-	// Fix: Strip markers (e.g. "Type | required=true" -> "Type")
-	// We use parseFieldSchema helper to ensure consistency with schema parsing logic.
-	// Note: parseFieldSchema returns (type, markers, error)
-	v, _, err := parseFieldSchema(v)
+	// Parse the type and extract markers using parseFieldSchema.
+	// Example: "MyType | required=true" becomes type="MyType", markers={required:true}
+	// This ensures consistency with how field schemas are parsed throughout the codebase.
+	typeStr, _, err := parseFieldSchema(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse markers from string type %s: %w", v, err)
 	}
+	v = typeStr
 
 	// Check if the value is an atomic type
 	if isAtomicType(v) {
@@ -183,7 +184,7 @@ func handleStringType(v string, dependencies sets.Set[string]) error {
 	}
 
 	// If the type is object, we do not add any dependency
-	// As unstructured objects are not validated https://kro.run/docs/concepts/simple-schema#unstructured-objects
+	// As unstructured objects are not validated [https://kro.run/docs/concepts/simple-schema#unstructured-objects](https://kro.run/docs/concepts/simple-schema#unstructured-objects)
 	if v == "object" {
 		return nil
 	}
@@ -513,8 +514,8 @@ func (tf *transformer) applyMarkers(schema *extv1.JSONSchemaProps, markers []*Ma
 				return fmt.Errorf("uniqueItems marker is only valid for array types, got type: %s", schema.Type)
 			case isUnique:
 				// Always set x-kubernetes-list-type to "set" when uniqueItems is true
-				// https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions
-				// https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become
+				// [https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions)
+				// [https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become](https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become)
 				schema.XListType = ptr.To("set")
 			default:
 				// ignore
