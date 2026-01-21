@@ -71,12 +71,11 @@ func TestBuildOpenAPISchema(t *testing.T) {
 					},
 					"contacts": {
 						Type:    "object",
-						Default: &extv1.JSON{Raw: []byte("{}")},
 						Properties: map[string]extv1.JSONSchemaProps{
 							"email": {Type: "string"},
 							"phone": {
 								Type:    "string",
-								Default: &extv1.JSON{Raw: []byte("\"000-000-0000\"")},
+								Default: &extv1.JSON{Raw: []byte(`"000-000-0000"`)},
 							},
 							"address": {
 								Type: "object",
@@ -395,29 +394,27 @@ func TestBuildOpenAPISchema(t *testing.T) {
 			},
 			want: &extv1.JSONSchemaProps{
 				Type:    "object",
-				Default: &extv1.JSON{Raw: []byte("{}")},
 				Properties: map[string]extv1.JSONSchemaProps{
 					"logLevel": {
 						Type:    "string",
-						Default: &extv1.JSON{Raw: []byte("\"info\"")},
+						Default: &extv1.JSON{Raw: []byte(`"info"`)},
 						Enum: []extv1.JSON{
-							{Raw: []byte("\"debug\"")},
-							{Raw: []byte("\"info\"")},
-							{Raw: []byte("\"warn\"")},
-							{Raw: []byte("\"error\"")},
+							{Raw: []byte(`"debug"`)},
+							{Raw: []byte(`"info"`)},
+							{Raw: []byte(`"warn"`)},
+							{Raw: []byte(`"error"`)},
 						},
 					},
 					"features": {
 						Type:    "object",
-						Default: &extv1.JSON{Raw: []byte("{}")},
 						Properties: map[string]extv1.JSONSchemaProps{
 							"logFormat": {
 								Type:    "string",
-								Default: &extv1.JSON{Raw: []byte("\"json\"")},
+								Default: &extv1.JSON{Raw: []byte(`"json"`)},
 								Enum: []extv1.JSON{
-									{Raw: []byte("\"json\"")},
-									{Raw: []byte("\"text\"")},
-									{Raw: []byte("\"csv\"")},
+									{Raw: []byte(`"json"`)},
+									{Raw: []byte(`"text"`)},
+									{Raw: []byte(`"csv"`)},
 								},
 							},
 							"errorCode": {
@@ -503,7 +500,7 @@ func TestBuildOpenAPISchema(t *testing.T) {
 		{
 			name: "Object with unknown fields in combination with default marker",
 			obj: map[string]interface{}{
-				"values": "object | default={\"a\": \"b\"}",
+				"values": "object | default={\"a\":\"b\"}",
 			},
 			want: &extv1.JSONSchemaProps{
 				Type: "object",
@@ -511,10 +508,9 @@ func TestBuildOpenAPISchema(t *testing.T) {
 					"values": {
 						Type:                   "object",
 						XPreserveUnknownFields: ptr.To(true),
-						Default:                &extv1.JSON{Raw: []byte("{\"a\": \"b\"}")},
+						Default:                &extv1.JSON{Raw: []byte(`{"a":"b"}`)},
 					},
 				},
-				Default: &extv1.JSON{Raw: []byte("{}")},
 			},
 			wantErr: false,
 		},
@@ -1291,6 +1287,7 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 				"ConfigMap": {
 					Schema: extv1.JSONSchemaProps{
 						Type: "object",
+						Default: &extv1.JSON{Raw: []byte("{}")},
 						Properties: map[string]extv1.JSONSchemaProps{
 							"data": {
 								Type:    "string",

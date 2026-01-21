@@ -108,7 +108,7 @@ func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 		objMap := map[string]interface{}{
 			vertex: objValueAtKey,
 		}
-		schemaProps, err := t.buildOpenAPISchema(objMap)
+		schemaProps, err := t.buildOpenAPISchema(objMap, false)
 		if err != nil {
 			return fmt.Errorf("failed to build pre-defined types schema : %w", err)
 		}
@@ -232,12 +232,12 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) error {
 }
 
 // buildOpenAPISchema builds an OpenAPI schema from the given object
-// of a SimpleSchema.
-func (tf *transformer) buildOpenAPISchema(obj map[string]interface{}) (*extv1.JSONSchemaProps, error) {
+func (tf *transformer) buildOpenAPISchema(obj map[string]interface{}, allowObjectDefault bool) (*extv1.JSONSchemaProps, error) {
 	schema := &extv1.JSONSchemaProps{
 		Type:       "object",
 		Properties: map[string]extv1.JSONSchemaProps{},
 	}
+
 	childHasDefault := false
 
 	for key, value := range obj {
@@ -246,12 +246,14 @@ func (tf *transformer) buildOpenAPISchema(obj map[string]interface{}) (*extv1.JS
 			return nil, err
 		}
 		schema.Properties[key] = *fieldSchema
+
 		if fieldSchema.Default != nil {
 			childHasDefault = true
 		}
 	}
 
-	if len(schema.Required) == 0 && childHasDefault && schema.Default == nil {
+	// Only set default if this is an inline object AND it has child defaults
+	if allowObjectDefault && childHasDefault {
 		schema.Default = &extv1.JSON{Raw: []byte("{}")}
 	}
 
@@ -266,9 +268,9 @@ func (tf *transformer) transformField(
 	switch v := value.(type) {
 	case map[interface{}]interface{}:
 		nMap := transformMap(v)
-		return tf.buildOpenAPISchema(nMap)
+		return tf.buildOpenAPISchema(nMap, true)
 	case map[string]interface{}:
-		return tf.buildOpenAPISchema(v)
+		return tf.buildOpenAPISchema(v, true)
 	case string:
 		return tf.parseFieldSchema(key, v, parentSchema)
 	default:
