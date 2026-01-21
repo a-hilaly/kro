@@ -1280,6 +1280,29 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 			want:    map[string]predefinedType{},
 			wantErr: true,
 		},
+		{
+			name: "Custom types with markers",
+			obj: map[string]interface{}{
+				"ConfigMap": map[string]interface{}{
+					"data": "string | default=prod",
+				},
+			},
+			want: map[string]predefinedType{
+				"ConfigMap": {
+					Schema: extv1.JSONSchemaProps{
+						Type: "object",
+						Properties: map[string]extv1.JSONSchemaProps{
+							"data": {
+								Type:    "string",
+								Default: &extv1.JSON{Raw: []byte(`"prod"`)},
+							},
+						},
+					},
+					Required: false,
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
