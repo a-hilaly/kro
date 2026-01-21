@@ -99,7 +99,7 @@ func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 	// to be processed
 	orderedVertexes, err := dagInstance.TopologicalSort()
 	if err != nil {
-		return fmt.Errorf("failed to get topological order for the types: %w", err)
+		return fmt.Errorf("failed to resolve type dependencies (possible circular reference or missing type definition): %w", err)
 	}
 
 	// Build the pre-defined types from the sorted DAG
@@ -145,9 +145,10 @@ func extractDependenciesFromMap(obj interface{}) (dependencies []string, err err
 }
 
 func handleStringType(v string, dependencies sets.Set[string]) error {
-	// Parse the type and extract markers using parseFieldSchema.
-	// Example: "MyType | required=true" becomes type="MyType", markers={required:true}
-	// This ensures consistency with how field schemas are parsed throughout the codebase.
+	// Extract and validate type information from field declaration.
+	// Markers (e.g., "required=true", "description=...") are stripped here and
+	// processed separately using parseFieldSchema helper to maintain consistency
+	// with main schema parsing. See parseFieldSchema for marker details.
 	typeStr, _, err := parseFieldSchema(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse markers from string type %s: %w", v, err)
@@ -190,7 +191,7 @@ func processParsedType(v string, dependencies sets.Set[string]) error {
 	}
 
 	// If the type is object, we do not add any dependency
-	// As unstructured objects are not validated https://kro.run/docs/concepts/simple-schema#unstructured-objects
+	// As unstructured objects are not validated [https://kro.run/docs/concepts/simple-schema#unstructured-objects](https://kro.run/docs/concepts/simple-schema#unstructured-objects)
 	if v == "object" {
 		return nil
 	}
@@ -200,7 +201,7 @@ func processParsedType(v string, dependencies sets.Set[string]) error {
 	return nil
 }
 
-func parseMap(m map[string]interface{}, dependencies sets.Set[string]) (err error) {
+func parseMap(m map[string]interface{}, dependencies sets.Set[string]) error {
 	for _, value := range m {
 		switch v := value.(type) {
 		case map[string]interface{}:
@@ -211,7 +212,7 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) (err erro
 		case []interface{}:
 			// Handle slices of types (e.g., []string)
 			// According to Simple Schema specification, inline objects in lists are not allowed.
-			// See: https://kro.run/api/specifications/simple-schema
+			// See: [https://kro.run/api/specifications/simple-schema](https://kro.run/api/specifications/simple-schema)
 			// Therefore, we only process string elements (type references and atomic types).
 			// We skip non-string elements since structured types cannot be defined inline.
 			for _, elem := range v {
@@ -324,6 +325,17 @@ func (tf *transformer) handleMapType(key, fieldType string) (*extv1.JSONSchemaPr
 	}
 	if keyType != keyTypeString {
 		return nil, fmt.Errorf("unsupported key type for maps, only strings are supported key types: %s", keyType)
+	}
+
+	// Validate that SimpleSchema spec is followed
+	// Only allowed: map[string]Type, map[string][]Type is NOT allowed per spec
+	if isUnsupportedNestedPattern(valueType) {
+		return nil, fmt.Errorf(
+			"unsupported nested type pattern in map value %q: SimpleSchema does not allow nested slicing like [][]Type or map[string][]Type. "+
+				"Only these patterns are allowed: Type, []Type, or map[string]Type. "+
+				"See: https://kro.run/api/specifications/simple-schema",
+			valueType,
+		)
 	}
 
 	fieldJSONSchemaProps := &extv1.JSONSchemaProps{
@@ -521,8 +533,8 @@ func (tf *transformer) applyMarkers(schema *extv1.JSONSchemaProps, markers []*Ma
 				return fmt.Errorf("uniqueItems marker is only valid for array types, got type: %s", schema.Type)
 			case isUnique:
 				// Always set x-kubernetes-list-type to "set" when uniqueItems is true
-				// https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions
-				// https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become
+				// [https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions)
+				// [https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become](https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become)
 				schema.XListType = ptr.To("set")
 			default:
 				// ignore
@@ -564,4 +576,28 @@ func transformMap(original map[interface{}]interface{}) map[string]interface{} {
 		result[strKey] = value
 	}
 	return result
+}
+
+// isUnsupportedNestedPattern checks if a type string uses nested patterns
+// that SimpleSchema does not support according to the specification.
+// See: https://kro.run/api/specifications/simple-schema
+//
+// NOT allowed patterns:
+// - [][]Type (nested arrays)
+// - map[string][]Type (maps of arrays)
+// - []map[string]Type (arrays of maps)
+func isUnsupportedNestedPattern(typeStr string) bool {
+	// Pattern: [][]Type
+	if strings.Contains(typeStr, "[][]") {
+		return true
+	}
+	// Pattern: map[string][]Type
+	if strings.Contains(typeStr, "map[string][]") {
+		return true
+	}
+	// Pattern: []map[string]Type
+	if strings.HasPrefix(typeStr, "[]map[") {
+		return true
+	}
+	return false
 }

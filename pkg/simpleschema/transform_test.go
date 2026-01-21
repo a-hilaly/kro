@@ -1295,3 +1295,61 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 		})
 	}
 }
+func TestIsUnsupportedNestedPattern(t *testing.T) {
+	tests := []struct {
+		name      string
+		typeStr   string
+		expectErr bool
+	}{
+		{
+			name:      "nested arrays [][]Type",
+			typeStr:   "[][]string",
+			expectErr: true,
+		},
+		{
+			name:      "triple nested arrays [][][]Type",
+			typeStr:   "[][][]string",
+			expectErr: true,
+		},
+		{
+			name:      "map of arrays map[string][]Type",
+			typeStr:   "map[string][]string",
+			expectErr: true,
+		},
+		{
+			name:      "array of maps []map[string]Type",
+			typeStr:   "[]map[string]string",
+			expectErr: true,
+		},
+		{
+			name:      "valid single array",
+			typeStr:   "[]string",
+			expectErr: false,
+		},
+		{
+			name:      "valid single map",
+			typeStr:   "map[string]string",
+			expectErr: false,
+		},
+		{
+			name:      "valid nested maps",
+			typeStr:   "map[string]map[string]string",
+			expectErr: false,
+		},
+		{
+			name:      "valid atomic type",
+			typeStr:   "string",
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isUnsupportedNestedPattern(tt.typeStr)
+			if result != tt.expectErr {
+				t.Errorf("isUnsupportedNestedPattern(%q) = %v, expected %v",
+					tt.typeStr, result, tt.expectErr)
+			}
+		})
+	}
+}
