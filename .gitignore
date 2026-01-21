@@ -45,3 +45,5 @@ node_modules/
 
 tools/lsp/client/out/
 manifests/rendered
+repro-906.yaml
+simple-app.yaml
