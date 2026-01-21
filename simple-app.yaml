@@ -1,0 +1,33 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: simple-app
+spec:
+  # 1. Define the API (The "Face" of your new resource)
+  schema:
+    apiVersion: v1alpha1
+    kind: SimpleApp
+    group: k8s.example.com
+    spec:
+      name: string | default="my-app"
+
+  # 2. Define the Resources (The "Guts" that get created)
+  resources:
+    - id: deployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${schema.spec.name}
+        spec:
+          selector:
+            matchLabels:
+              app: ${schema.spec.name}
+          template:
+            metadata:
+              labels:
+                app: ${schema.spec.name}
+            spec:
+              containers:
+                - name: app
+                  image: nginx:latest
