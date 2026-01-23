@@ -33,7 +33,7 @@ func ToOpenAPISpec(obj map[string]interface{}, customTypes map[string]interface{
 	if err := tf.loadPreDefinedTypes(customTypes); err != nil {
 		return nil, err
 	}
-	return tf.buildOpenAPISchema(obj, false)
+	return tf.buildOpenAPISchema(obj)
 }
 
 // FromOpenAPISpec converts an OpenAPI schema to a SimpleSchema object.

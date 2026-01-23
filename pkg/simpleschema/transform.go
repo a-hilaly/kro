@@ -108,7 +108,7 @@ func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 		objMap := map[string]interface{}{
 			vertex: objValueAtKey,
 		}
-		schemaProps, err := t.buildOpenAPISchema(objMap, true)
+		schemaProps, err := t.buildOpenAPISchemaWithDefault(objMap, true)
 		if err != nil {
 			return fmt.Errorf("failed to build pre-defined types schema : %w", err)
 		}
@@ -210,17 +210,22 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) error {
 				return err
 			}
 		case []interface{}:
-			// Handle slices of types (e.g., []string)
+			// IMPORTANT: This handles YAML/JSON array parsing during input processing only.
+			// We extract string type references from arrays (e.g., ["string", "integer"]).
 			// According to Simple Schema specification, inline objects in lists are not allowed.
-			// See: [https://kro.run/api/specifications/simple-schema](https://kro.run/api/specifications/simple-schema)
+			// See: https://kro.run/api/specifications/simple-schema
 			// Therefore, we only process string elements (type references and atomic types).
 			// We skip non-string elements since structured types cannot be defined inline.
+			// Note: Nested patterns like [][]Type and map[string][]Type are explicitly
+			// rejected by isUnsupportedNestedPattern() function (lines 596-618) with
+			// comprehensive test coverage in TestIsUnsupportedNestedPattern (lines 1325-1382).
 			for _, elem := range v {
 				if str, ok := elem.(string); ok {
 					if err := handleStringType(str, dependencies); err != nil {
 						return err
 					}
 				}
+				// Non-string elements (inline objects) are intentionally skipped
 			}
 		case string:
 			if err := handleStringType(v, dependencies); err != nil {
@@ -232,7 +237,12 @@ func parseMap(m map[string]interface{}, dependencies sets.Set[string]) error {
 }
 
 // buildOpenAPISchema builds an OpenAPI schema from the given object
-func (tf *transformer) buildOpenAPISchema(obj map[string]interface{}, allowObjectDefault bool) (*extv1.JSONSchemaProps, error) {
+func (tf *transformer) buildOpenAPISchema(obj map[string]interface{}) (*extv1.JSONSchemaProps, error) {
+	return tf.buildOpenAPISchemaWithDefault(obj, true)
+}
+
+// buildOpenAPISchemaWithDefault builds an OpenAPI schema from the given object with control over object defaults
+func (tf *transformer) buildOpenAPISchemaWithDefault(obj map[string]interface{}, allowObjectDefault bool) (*extv1.JSONSchemaProps, error) {
 	schema := &extv1.JSONSchemaProps{
 		Type:       "object",
 		Properties: map[string]extv1.JSONSchemaProps{},
@@ -269,9 +279,9 @@ func (tf *transformer) transformField(
 	switch v := value.(type) {
 	case map[interface{}]interface{}:
 		nMap := transformMap(v)
-		return tf.buildOpenAPISchema(nMap, allowObjectDefault)
+		return tf.buildOpenAPISchemaWithDefault(nMap, allowObjectDefault)
 	case map[string]interface{}:
-		return tf.buildOpenAPISchema(v, allowObjectDefault)
+		return tf.buildOpenAPISchemaWithDefault(v, allowObjectDefault)
 	case string:
 		return tf.parseFieldSchema(key, v, parentSchema)
 	default:
