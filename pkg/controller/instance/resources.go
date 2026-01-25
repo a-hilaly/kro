@@ -146,7 +146,9 @@ func (c *Controller) prepareResource(
 	if err != nil {
 		if runtime.IsDataPending(err) {
 			st.State = ResourceStateWaitingForReadiness
-			return nil, true, id, nil
+			// Skip prune when any resource is unresolved to avoid deleting
+			// previously managed resources that are still pending resolution.
+			return nil, false, id, nil
 		}
 		st.State = ResourceStateError
 		st.Err = err
@@ -390,9 +392,14 @@ func (c *Controller) handleExternalRef(
 	// External refs are read-only here: fetch and push into runtime for dependency/readiness.
 	actual, err := c.readExternalRef(rcx, id, desired)
 	if err != nil {
-		st.State = ResourceStateWaitingForReadiness
-		st.Err = fmt.Errorf("waiting for external reference %q: %w", id, err)
-		return nil
+		if errors.IsNotFound(err) {
+			st.State = ResourceStateWaitingForReadiness
+			st.Err = fmt.Errorf("waiting for external reference %q: %w", id, err)
+			return nil
+		}
+		st.State = ResourceStateError
+		st.Err = err
+		return err
 	}
 
 	node.SetObserved([]*unstructured.Unstructured{actual})
@@ -482,7 +489,9 @@ func (c *Controller) processApplyResults(
 			continue
 		}
 
-		if resourceState.State == ResourceStateError || resourceState.State == ResourceStateSkipped {
+		if resourceState.State == ResourceStateError ||
+			resourceState.State == ResourceStateSkipped ||
+			resourceState.State == ResourceStateWaitingForReadiness {
 			continue
 		}
 
@@ -526,8 +535,14 @@ func (c *Controller) updateCollectionFromApplyResults(
 ) error {
 	resourceID := node.Spec.Meta.ID
 	desiredItems, err := node.GetDesired()
-	if err != nil || len(desiredItems) == 0 {
+	if err != nil {
+		resourceState.State = ResourceStateError
+		resourceState.Err = err
+		return err
+	}
+	if len(desiredItems) == 0 {
 		resourceState.State = ResourceStateSynced
+		resourceState.Err = nil
 		return nil
 	}
 

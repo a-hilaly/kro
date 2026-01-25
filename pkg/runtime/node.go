@@ -132,7 +132,8 @@ func (n *Node) GetDesired() ([]*unstructured.Unstructured, error) {
 		}
 	}
 
-	result, err := n.resolveWithOptions(true, nil)
+	hard := n.Spec.Meta.Type != graph.NodeTypeInstance
+	result, err := n.resolveWithOptions(hard, nil)
 
 	if err == nil {
 		if n.Spec.Meta.Namespaced && n.Spec.Meta.Type != graph.NodeTypeInstance {
