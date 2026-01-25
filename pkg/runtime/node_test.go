@@ -590,7 +590,7 @@ func TestNode_EvaluateExprs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			values, hasPending, err := tt.node().evaluateExprs(false)
+			values, hasPending, err := tt.node().evaluateExprsFiltered(nil, false)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -616,7 +616,7 @@ func TestNode_ResolveInTemplate(t *testing.T) {
 			"metadata":   map[string]any{"name": "${schema.spec.name}"},
 		}).build()
 
-	result, err := node.resolveInTemplate(node.Spec.Template, map[string]any{"schema.spec.name": "myapp"})
+	result, err := node.resolveFieldsInTemplate(node.Spec.Template, map[string]any{"schema.spec.name": "myapp"}, node.templateVars)
 	assert.NoError(t, err)
 	assert.Equal(t, "myapp", result.GetName())
 }
@@ -955,7 +955,7 @@ func TestNode_HardResolveSingleResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := tt.node.hardResolveSingleResource()
+			result, err := tt.node.resolveWithOptions(true, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errIs != nil {
@@ -1244,7 +1244,7 @@ func TestNode_HardResolveCollection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := tt.node.hardResolveCollection()
+			result, err := tt.node.resolveWithOptions(true, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errIs != nil {
