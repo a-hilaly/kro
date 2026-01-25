@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.9.1">
 <title data-rh="true">Readiness | kro</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://kro.run/kro/img/kro.svg"><meta data-rh="true" name="twitter:image" content="https://kro.run/kro/img/kro.svg"><meta data-rh="true" property="og:url" content="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/readiness"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Readiness | kro"><meta data-rh="true" name="description" content="Not all resources are ready immediately after creation. A Deployment might exist but have zero available replicas, or a LoadBalancer Service might not have an external IP yet. If dependent resources try to use values that don&#x27;t exist yet, they&#x27;ll fail or get invalid data."><meta data-rh="true" property="og:description" content="Not all resources are ready immediately after creation. A Deployment might exist but have zero available replicas, or a LoadBalancer Service might not have an external IP yet. If dependent resources try to use values that don&#x27;t exist yet, they&#x27;ll fail or get invalid data."><link data-rh="true" rel="icon" href="/kro/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/readiness"><link data-rh="true" rel="alternate" href="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/readiness" hreflang="en"><link data-rh="true" rel="alternate" href="https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/readiness" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Readiness","item":"https://kro.run/kro/next/docs/concepts/rgd/resource-definitions/readiness"}]}</script><meta name="go-import" content="kro.run/pkg git https://github.com/kubernetes-sigs/kro">
 <meta name="go-source" content="kro.run/pkg git https://github.com/kubernetes-sigs/kro https://github.com/kubernetes-sigs/kro/tree/main{/dir} https://github.com/kubernetes-sigs/kro/blob/main{/dir}/{file}#L{line}"><link rel="stylesheet" href="/kro/assets/css/styles.5d887e16.css">
-<script src="/kro/assets/js/runtime~main.69962c30.js" defer="defer"></script>
-<script src="/kro/assets/js/main.0b4ef963.js" defer="defer"></script>
+<script src="/kro/assets/js/runtime~main.d94c380a.js" defer="defer"></script>
+<script src="/kro/assets/js/main.dd817662.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg style="display: none;"><defs>
@@ -64,12 +64,23 @@
 <li>For <a href="/kro/next/docs/concepts/rgd/resource-definitions/collections">collections</a>, <code>readyWhen</code> applies to the entire collection</li>
 </ul>
 <h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="what-you-can-reference">What You Can Reference<a href="#what-you-can-reference" class="hash-link" aria-label="Direct link to What You Can Reference" title="Direct link to What You Can Reference" translate="no">​</a></h2>
-<p><code>readyWhen</code> expressions can only reference the resource itself (by its <code>id</code>):</p>
+<p><code>readyWhen</code> expressions can only reference the resource itself (by its <code>id</code>).
+For collections, use the <code>each</code> keyword to reference the current item:</p>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="comment_cniX"># ✓ Valid - references the resource itself and returns boolean</span>
 <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->deployment<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">readyWhen</span>:<!-- -->
 <!-- -->    - <span class="celExpression_MAYK">${deployment.status.availableReplicas &gt; 0}</span>
 <!-- -->    - <span class="celExpression_MAYK">${deployment.status.conditions.exists(c, c.type == &quot;Available&quot; &amp;&amp; c.status == &quot;True&quot;)}</span></code></pre></div></div>
+<div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="comment_cniX"># ✓ Valid for collections - uses each for per-item readiness</span>
+<!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->workerPods<!-- -->
+<!-- -->  <span class="kroKeyword_GbQ5">forEach</span>:<!-- -->
+<!-- -->    <!-- -->- <span class="yamlKey_lCMJ">worker</span>: <span class="celExpression_MAYK">${schema.spec.workers}</span>
+<!-- -->  <span class="kroKeyword_GbQ5">readyWhen</span>:<!-- -->
+<!-- -->    - <span class="celExpression_MAYK">${each.status.phase == &#x27;Running&#x27;}</span>
+<!-- -->  <span class="kroKeyword_GbQ5">template</span>:<!-- -->
+<!-- -->    <span class="yamlKey_lCMJ">kind</span>: <!-- -->Pod<!-- -->
+<!-- -->    <span class="yamlKey_lCMJ">metadata</span>:<!-- -->
+<!-- -->      <span class="yamlKey_lCMJ">name</span>: <span class="celExpression_MAYK">${schema.metadata.name + &#x27;-&#x27; + worker}</span></code></pre></div></div>
 <div class="codeBlockContainer_X7hc"><div class="codeBlockContent_vqWU"><button class="copyButton_H_xL" title="Copy"><svg viewBox="0 0 24 24" class="copyIcon_el7_"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg></button><pre class="kroCodeBlock_J7AA"><code><span class="comment_cniX"># ✗ Invalid - cannot reference other resources or schema</span>
 <!-- -->- <span class="kroKeyword_GbQ5">id</span>: <!-- -->deployment<!-- -->
 <!-- -->  <span class="kroKeyword_GbQ5">readyWhen</span>:<!-- -->
