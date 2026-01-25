@@ -45,6 +45,28 @@ func TestGraphBuilder_Validation(t *testing.T) {
 		errMsg                      string
 	}{
 		{
+			name: "invalid cluster-scoped template with namespace",
+			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
+				generator.WithSchema(
+					"Test", "v1alpha1",
+					map[string]interface{}{
+						"name": "string",
+					},
+					nil,
+				),
+				generator.WithResource("somecrd", map[string]interface{}{
+					"apiVersion": "apiextensions.k8s.io/v1",
+					"kind":       "CustomResourceDefinition",
+					"metadata": map[string]interface{}{
+						"name":      "test-crd",
+						"namespace": "default",
+					},
+				}, nil, nil),
+			},
+			wantErr: true,
+			errMsg:  "metadata.namespace is not allowed for cluster-scoped resources",
+		},
+		{
 			name: "invalid resource type",
 			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
 				generator.WithSchema(
@@ -3081,7 +3103,7 @@ func TestGraphBuilder_CollectionValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "invalid collection - cluster-scoped resource with iterator only in namespace",
+			name: "invalid collection - cluster-scoped resource with namespace set",
 			resourceGraphDefinitionOpts: []generator.ResourceGraphDefinitionOption{
 				generator.WithSchema(
 					"ClusterScoped", "v1alpha1",
@@ -3090,13 +3112,11 @@ func TestGraphBuilder_CollectionValidation(t *testing.T) {
 					},
 					nil,
 				),
-				// CRD is cluster-scoped, so namespace field doesnt count for identity
 				generator.WithResourceCollection("crds", map[string]interface{}{
 					"apiVersion": "apiextensions.k8s.io/v1",
 					"kind":       "CustomResourceDefinition",
 					"metadata": map[string]interface{}{
-						"name": "static-name",
-						// Iterator in namespace field doesn't count for cluster-scoped resources
+						"name":      "static-name",
 						"namespace": "${name}",
 					},
 				},
@@ -3106,7 +3126,7 @@ func TestGraphBuilder_CollectionValidation(t *testing.T) {
 					nil, nil),
 			},
 			wantErr: true,
-			errMsg:  "all forEach dimensions must be used to produce a unique resource identity, missing: [name]",
+			errMsg:  "metadata.namespace is not allowed for cluster-scoped resources",
 		},
 	}
 

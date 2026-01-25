@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/kubernetes-sigs/kro/api/v1alpha1"
@@ -255,6 +256,17 @@ func validateCombinableResourceFields(res *v1alpha1.Resource) error {
 	}
 	if hasExternalRef && len(res.ForEach) > 0 {
 		return fmt.Errorf("resource %q: cannot use externalRef with forEach", res.ID)
+	}
+	return nil
+}
+
+func validateTemplateConstraints(res *v1alpha1.Resource, obj *unstructured.Unstructured, namespaced bool) error {
+	// TODO(a-hilaly): extend this to validate generateName, status fields,
+	// reserved metadata like creationTimestamp/deletionTimestamp, and kro-owned labels.
+	if !namespaced {
+		if _, ok, _ := unstructured.NestedFieldNoCopy(obj.Object, "metadata", "namespace"); ok {
+			return fmt.Errorf("resource %q: metadata.namespace is not allowed for cluster-scoped resources", res.ID)
+		}
 	}
 	return nil
 }

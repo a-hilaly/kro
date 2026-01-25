@@ -327,7 +327,19 @@ func (b *Builder) buildRGResource(
 		return nil, nil, fmt.Errorf("failed to get schema for resource %s: %w", rgResource.ID, err)
 	}
 
-	// 6. Extract CEL fieldDescriptors from the resource.
+	mapping, err := b.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get REST mapping for resource %s: %w", rgResource.ID, err)
+	}
+
+	// 6. Validate template constraints
+	namespaced := mapping.Scope.Name() == meta.RESTScopeNameNamespace
+	templateObj := &unstructured.Unstructured{Object: resourceObject}
+	if err := validateTemplateConstraints(rgResource, templateObj, namespaced); err != nil {
+		return nil, nil, err
+	}
+
+	// 7. Extract CEL fieldDescriptors from the resource.
 	var fieldDescriptors []variable.FieldDescriptor
 	if gvk.Group == "apiextensions.k8s.io" && gvk.Version == "v1" && gvk.Kind == "CustomResourceDefinition" {
 		fieldDescriptors, err = parser.ParseSchemalessResource(resourceObject)
@@ -361,27 +373,22 @@ func (b *Builder) buildRGResource(
 		})
 	}
 
-	// 7. Parse ReadyWhen expressions
+	// 8. Parse ReadyWhen expressions
 	readyWhen, err := parser.ParseConditionExpressions(rgResource.ReadyWhen)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse readyWhen expressions: %v", err)
 	}
 
-	// 8. Parse condition expressions
+	// 9. Parse condition expressions
 	includeWhen, err := parser.ParseConditionExpressions(rgResource.IncludeWhen)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse includeWhen expressions: %v", err)
 	}
 
-	// 9. Parse forEach dimensions
+	// 10. Parse forEach dimensions
 	forEachDimensions, err := parseForEachDimensions(rgResource.ForEach)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse forEach dimensions: %v", err)
-	}
-
-	mapping, err := b.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get REST mapping for resource %s: %w", rgResource.ID, err)
 	}
 
 	// Determine node type
@@ -399,10 +406,10 @@ func (b *Builder) buildRGResource(
 			Index:      order,
 			Type:       nodeType,
 			GVR:        mapping.Resource,
-			Namespaced: mapping.Scope.Name() == meta.RESTScopeNameNamespace,
+			Namespaced: namespaced,
 			// Dependencies will be set by buildDependencyGraph
 		},
-		Template:    &unstructured.Unstructured{Object: resourceObject},
+		Template:    templateObj,
 		Variables:   templateVariables,
 		IncludeWhen: includeWhen,
 		ReadyWhen:   readyWhen,
