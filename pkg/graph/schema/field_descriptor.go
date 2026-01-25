@@ -145,56 +145,81 @@ func addFieldToSchema(fieldDescriptor fieldDescriptor, schema *extv1.JSONSchemaP
 		return fmt.Errorf("failed to parse path %s: %w", fieldDescriptor.Path, err)
 	}
 
-	currentSchema := schema
+	return addFieldToSchemaSegments(schema, segments, fieldDescriptor.Schema)
+}
 
-	for i, segment := range segments {
-		isLast := i == len(segments)-1
+// addFieldToSchemaSegments walks the parsed path segments, ensures the schema
+// tree has the required object/array nodes, and writes the leaf schema.
+func addFieldToSchemaSegments(
+	currentSchema *extv1.JSONSchemaProps,
+	segments []fieldpath.Segment,
+	leafSchema *extv1.JSONSchemaProps,
+) error {
+	if len(segments) == 0 {
+		return nil
+	}
 
-		if segment.Index >= 0 {
-			// Handle array segment
-			if currentSchema.Type != "array" {
-				currentSchema.Type = "array"
-				currentSchema.Items = &extv1.JSONSchemaPropsOrArray{
-					Schema: &extv1.JSONSchemaProps{
-						Type:       "object",
-						Properties: make(map[string]extv1.JSONSchemaProps),
-					},
-				}
+	segment := segments[0]
+	isLast := len(segments) == 1
+
+	if segment.Index >= 0 {
+		// handle array segment
+		if currentSchema.Type != "array" {
+			currentSchema.Type = "array"
+		}
+		if currentSchema.Items == nil || currentSchema.Items.Schema == nil {
+			currentSchema.Items = &extv1.JSONSchemaPropsOrArray{
+				Schema: &extv1.JSONSchemaProps{
+					Type:       "object",
+					Properties: make(map[string]extv1.JSONSchemaProps),
+				},
 			}
-			currentSchema = currentSchema.Items.Schema
 		}
 
 		if isLast {
-			// This is the final segment of the path, add the schema here
-			if fieldDescriptor.Schema != nil {
-				if segment.Index >= 0 {
-					*currentSchema = *fieldDescriptor.Schema
-				} else {
-					currentSchema.Properties[segment.Name] = *fieldDescriptor.Schema
-				}
+			if leafSchema != nil {
+				*currentSchema.Items.Schema = *leafSchema
 			} else {
-				// If no schema is provided, default to a string type
-				defaultSchema := extv1.JSONSchemaProps{Type: "string"}
-				if segment.Index >= 0 {
-					*currentSchema = defaultSchema
-				} else {
-					currentSchema.Properties[segment.Name] = defaultSchema
-				}
+				*currentSchema.Items.Schema = extv1.JSONSchemaProps{Type: "string"}
 			}
-		} else {
-			// This is an intermediate segment of the path
-			if segment.Index < 0 {
-				if _, exists := currentSchema.Properties[segment.Name]; !exists {
-					currentSchema.Properties[segment.Name] = extv1.JSONSchemaProps{
-						Type:       "object",
-						Properties: make(map[string]extv1.JSONSchemaProps),
-					}
-				}
-				s := currentSchema.Properties[segment.Name]
-				currentSchema = &s
-			}
+			return nil
 		}
+
+		return addFieldToSchemaSegments(currentSchema.Items.Schema, segments[1:], leafSchema)
 	}
 
+	if currentSchema.Properties == nil {
+		currentSchema.Properties = make(map[string]extv1.JSONSchemaProps)
+	}
+
+	if isLast {
+		if leafSchema != nil {
+			currentSchema.Properties[segment.Name] = *leafSchema
+		} else {
+			currentSchema.Properties[segment.Name] = extv1.JSONSchemaProps{Type: "string"}
+		}
+		return nil
+	}
+
+	child, exists := currentSchema.Properties[segment.Name]
+	if !exists {
+		child = extv1.JSONSchemaProps{
+			Type:       "object",
+			Properties: make(map[string]extv1.JSONSchemaProps),
+		}
+	}
+	if child.Properties == nil {
+		child.Properties = make(map[string]extv1.JSONSchemaProps)
+	}
+	if child.Type == "" {
+		child.Type = "object"
+	}
+	// Child schemas can be partially filled by other status fields that share
+	// this prefix; mutate a local copy and write it back to merge safely.
+
+	if err := addFieldToSchemaSegments(&child, segments[1:], leafSchema); err != nil {
+		return err
+	}
+	currentSchema.Properties[segment.Name] = child
 	return nil
 }
