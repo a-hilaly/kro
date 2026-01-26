@@ -546,8 +546,8 @@ func (tf *transformer) applyMarkers(schema *extv1.JSONSchemaProps, markers []*Ma
 				return fmt.Errorf("uniqueItems marker is only valid for array types, got type: %s", schema.Type)
 			case isUnique:
 				// Always set x-kubernetes-list-type to "set" when uniqueItems is true
-				// [https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions)
-				// [https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become](https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become)
+				// https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions
+				// https://stackoverflow.com/questions/79399232/forbidden-uniqueitems-cannot-be-set-to-true-since-the-runtime-complexity-become
 				schema.XListType = ptr.To("set")
 			default:
 				// ignore

@@ -286,6 +286,112 @@ schema:
 
 Custom types are expanded inline when kro generates the CRD.
 
+### Recursive Custom Types
+
+Custom types can reference other custom types, enabling you to build complex, reusable schemas. This includes simple references, arrays of custom types, and maps of custom types.
+
+#### Basic Type References
+
+A custom type can reference another custom type directly:
+
+```kro
+schema:
+  types:
+    Address:
+      street: string
+      city: string
+      zipCode: string
+
+    Company:
+      name: string
+      address: Address
+
+    Person:
+      name: string
+      company: Company
+```
+
+When kro processes this schema, it resolves the dependencies in the correct order (Address → Company → Person) and expands them inline in the generated CRD.
+
+#### Arrays of Custom Types
+
+You can use custom types as array elements:
+
+```kro
+schema:
+  types:
+    Employee:
+      name: string
+      role: string
+
+    Department:
+      name: string
+      employees: "[]Employee"
+
+  spec:
+    departments: "[]Department"
+```
+
+#### Maps of Custom Types
+
+Custom types can be used as map values:
+
+```kro
+schema:
+  types:
+    ServiceConfig:
+      port: integer
+      protocol: string
+
+  spec:
+    services: "map[string]ServiceConfig"
+```
+
+#### Cyclic Dependency Detection
+
+kro automatically detects and rejects cyclic dependencies between custom types:
+
+```kro
+# This will fail validation
+schema:
+  types:
+    Person:
+      name: string
+      company: Company
+
+    Company:
+      name: string
+      employees: "[]Person"  # Creates a cycle: Person → Company → Person
+```
+
+**Error**: `failed to load type Person due to cyclic dependency`
+
+To avoid this, restructure your types to break the cycle, or use inline object definitions where appropriate.
+
+#### Limitations
+
+According to the [SimpleSchema specification](../../../api/specifications/simple-schema.md), the following nested patterns are **not supported**:
+
+- `[][]Type` - Nested arrays
+- `map[string][]Type` - Maps of arrays  
+- `[]map[string]Type` - Arrays of maps
+
+Only these patterns are allowed:
+- `Type` - Direct type reference
+- `[]Type` - Array of type
+- `map[string]Type` - Map with type values
+
+**Example of unsupported pattern**:
+```kro
+# This will fail validation
+schema:
+  types:
+    Matrix:
+      data: "[][]integer"  # Not supported
+```
+
+**Error**: `unsupported nested type pattern`
+
 ## Additional Printer Columns
 
 Control what `kubectl get` displays:

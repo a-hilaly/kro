@@ -1087,7 +1087,7 @@ func TestLoadPreDefinedTypes(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Valid types with cross-references",
+			name: "Valid types",
 			obj: map[string]interface{}{
 				"Person": map[string]interface{}{
 					"name": "string",
