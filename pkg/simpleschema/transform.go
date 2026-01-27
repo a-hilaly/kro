@@ -65,7 +65,6 @@ func newTransformer() *transformer {
 // other custom types.
 // Cyclic dependencies are detected and reported as errors.
 func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
-
 	// Constructs a dag of the dependencies between the types
 	// If there is a cycle in the graph, then there is a cyclic dependency between the types
 	// and we cannot load the types
@@ -89,7 +88,7 @@ func (t *transformer) loadPreDefinedTypes(obj map[string]interface{}) error {
 		if err := dagInstance.AddDependencies(k, dependencies); err != nil {
 			var cycleErr *dag.CycleError[string]
 			if errors.As(err, &cycleErr) {
-				return fmt.Errorf("failed to load type %s due to cyclic dependency. Please remove the cyclic dependency: %w", k, err)
+				return fmt.Errorf("cyclic dependency detected loading type %s: %w", k, err)
 			}
 			return err
 		}
@@ -191,8 +190,7 @@ func processParsedType(v string, dependencies sets.Set[string]) error {
 	}
 
 	// If the type is object, we do not add any dependency
-	// As unstructured objects are not validated [https://kro.run/docs/concepts/simple-schema#unstructured-objects](https://kro.run/docs/concepts/simple-schema#unstructured-objects)
-	if v == "object" {
+	if v == keyTypeObject {
 		return nil
 	}
 
@@ -202,35 +200,18 @@ func processParsedType(v string, dependencies sets.Set[string]) error {
 }
 
 func parseMap(m map[string]interface{}, dependencies sets.Set[string]) error {
-	for _, value := range m {
+	for key, value := range m {
 		switch v := value.(type) {
 		case map[string]interface{}:
-			// Recursively parse nested maps
 			if err := parseMap(v, dependencies); err != nil {
 				return err
-			}
-		case []interface{}:
-			// IMPORTANT: This handles YAML/JSON array parsing during input processing only.
-			// We extract string type references from arrays (e.g., ["string", "integer"]).
-			// According to Simple Schema specification, inline objects in lists are not allowed.
-			// See: https://kro.run/api/specifications/simple-schema
-			// Therefore, we only process string elements (type references and atomic types).
-			// We skip non-string elements since structured types cannot be defined inline.
-			// Note: Nested patterns like [][]Type and map[string][]Type are explicitly
-			// rejected by isUnsupportedNestedPattern() function (lines 596-618) with
-			// comprehensive test coverage in TestIsUnsupportedNestedPattern (lines 1325-1382).
-			for _, elem := range v {
-				if str, ok := elem.(string); ok {
-					if err := handleStringType(str, dependencies); err != nil {
-						return err
-					}
-				}
-				// Non-string elements (inline objects) are intentionally skipped
 			}
 		case string:
 			if err := handleStringType(v, dependencies); err != nil {
 				return err
 			}
+		default:
+			return fmt.Errorf("invalid type in schema: key: %s, value: %v", key, value)
 		}
 	}
 	return nil
@@ -338,17 +319,6 @@ func (tf *transformer) handleMapType(key, fieldType string) (*extv1.JSONSchemaPr
 	}
 	if keyType != keyTypeString {
 		return nil, fmt.Errorf("unsupported key type for maps, only strings are supported key types: %s", keyType)
-	}
-
-	// Validate that SimpleSchema spec is followed
-	// Only allowed: map[string]Type, map[string][]Type is NOT allowed per spec
-	if isUnsupportedNestedPattern(valueType) {
-		return nil, fmt.Errorf(
-			"unsupported nested type pattern in map value %q: SimpleSchema does not allow nested slicing like [][]Type or map[string][]Type. "+
-				"Only these patterns are allowed: Type, []Type, or map[string]Type. "+
-				"See: https://kro.run/api/specifications/simple-schema",
-			valueType,
-		)
 	}
 
 	fieldJSONSchemaProps := &extv1.JSONSchemaProps{
@@ -589,28 +559,4 @@ func transformMap(original map[interface{}]interface{}) map[string]interface{} {
 		result[strKey] = value
 	}
 	return result
-}
-
-// isUnsupportedNestedPattern checks if a type string uses nested patterns
-// that SimpleSchema does not support according to the specification.
-// See: https://kro.run/api/specifications/simple-schema
-//
-// NOT allowed patterns:
-// - [][]Type (nested arrays)
-// - map[string][]Type (maps of arrays)
-// - []map[string]Type (arrays of maps)
-func isUnsupportedNestedPattern(typeStr string) bool {
-	// Pattern: [][]Type
-	if strings.Contains(typeStr, "[][]") {
-		return true
-	}
-	// Pattern: map[string][]Type
-	if strings.Contains(typeStr, "map[string][]") {
-		return true
-	}
-	// Pattern: []map[string]Type
-	if strings.HasPrefix(typeStr, "[]map[") {
-		return true
-	}
-	return false
 }
