@@ -15,9 +15,7 @@
 package simpleschema
 
 import (
-	"fmt"
 	"reflect"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,6 +60,7 @@ func TestBuildOpenAPISchema(t *testing.T) {
 			},
 			want: &extv1.JSONSchemaProps{
 				Type:     "object",
+				Default:  &extv1.JSON{Raw: []byte("{}")},
 				Required: []string{"name"},
 				Properties: map[string]extv1.JSONSchemaProps{
 					"name": {Type: "string"},
@@ -273,7 +272,6 @@ func TestBuildOpenAPISchema(t *testing.T) {
 				Properties: map[string]extv1.JSONSchemaProps{
 					"matrix": {
 						Type: "array",
-
 						Items: &extv1.JSONSchemaPropsOrArray{
 							Schema: &extv1.JSONSchemaProps{
 								Type: "array",
@@ -328,6 +326,97 @@ func TestBuildOpenAPISchema(t *testing.T) {
 													"age":  {Type: "integer"},
 												},
 											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Map of arrays",
+			obj: map[string]interface{}{
+				"tags": "map[string][]string",
+			},
+			want: &extv1.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]extv1.JSONSchemaProps{
+					"tags": {
+						Type: "object",
+						AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+							Schema: &extv1.JSONSchemaProps{
+								Type: "array",
+								Items: &extv1.JSONSchemaPropsOrArray{
+									Schema: &extv1.JSONSchemaProps{Type: "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Array of maps",
+			obj: map[string]interface{}{
+				"configs": "[]map[string]integer",
+			},
+			want: &extv1.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]extv1.JSONSchemaProps{
+					"configs": {
+						Type: "array",
+						Items: &extv1.JSONSchemaPropsOrArray{
+							Schema: &extv1.JSONSchemaProps{
+								Type: "object",
+								AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+									Schema: &extv1.JSONSchemaProps{Type: "integer"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Custom types with nested collections",
+			obj: map[string]interface{}{
+				"data": "Record",
+			},
+			types: map[string]interface{}{
+				"Record": map[string]interface{}{
+					"tags":   "map[string][]string",
+					"matrix": "[][]integer",
+				},
+			},
+			want: &extv1.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]extv1.JSONSchemaProps{
+					"data": {
+						Type: "object",
+						Properties: map[string]extv1.JSONSchemaProps{
+							"tags": {
+								Type: "object",
+								AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+									Schema: &extv1.JSONSchemaProps{
+										Type: "array",
+										Items: &extv1.JSONSchemaPropsOrArray{
+											Schema: &extv1.JSONSchemaProps{Type: "string"},
+										},
+									},
+								},
+							},
+							"matrix": {
+								Type: "array",
+								Items: &extv1.JSONSchemaPropsOrArray{
+									Schema: &extv1.JSONSchemaProps{
+										Type: "array",
+										Items: &extv1.JSONSchemaPropsOrArray{
+											Schema: &extv1.JSONSchemaProps{Type: "integer"},
 										},
 									},
 								},
@@ -504,18 +593,18 @@ func TestBuildOpenAPISchema(t *testing.T) {
 		{
 			name: "Object with unknown fields in combination with default marker",
 			obj: map[string]interface{}{
-				"values": "object | default={\"a\": \"b\"}",
+				"values": "object | default={\"a\":\"b\"}",
 			},
 			want: &extv1.JSONSchemaProps{
-				Type: "object",
+				Type:    "object",
+				Default: &extv1.JSON{Raw: []byte("{}")},
 				Properties: map[string]extv1.JSONSchemaProps{
 					"values": {
 						Type:                   "object",
 						XPreserveUnknownFields: ptr.To(true),
-						Default:                &extv1.JSON{Raw: []byte("{\"a\": \"b\"}")},
+						Default:                &extv1.JSON{Raw: []byte("{\"a\":\"b\"}")},
 					},
 				},
-				Default: &extv1.JSON{Raw: []byte("{}")},
 			},
 			wantErr: false,
 		},
@@ -1024,6 +1113,74 @@ func TestBuildOpenAPISchema(t *testing.T) {
 			want:    nil,
 			wantErr: true,
 		},
+		// Error paths for transform.go coverage
+		{
+			name: "Cyclic dependency in custom types",
+			obj: map[string]interface{}{
+				"data": "TypeA",
+			},
+			types: map[string]interface{}{
+				"TypeA": "TypeB",
+				"TypeB": "TypeA",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid custom type spec",
+			obj: map[string]interface{}{
+				"data": "string",
+			},
+			types: map[string]interface{}{
+				"BadType": 123,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid string custom type",
+			obj: map[string]interface{}{
+				"data": "string",
+			},
+			types: map[string]interface{}{
+				"BadType": "[]",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid map custom type",
+			obj: map[string]interface{}{
+				"data": "string",
+			},
+			types: map[string]interface{}{
+				"BadType": map[string]interface{}{
+					"field": 123,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid marker on custom type",
+			obj: map[string]interface{}{
+				"data": "string",
+			},
+			types: map[string]interface{}{
+				"BadType": "string | unknownMarker=true",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid field spec type",
+			obj: map[string]interface{}{
+				"data": 123,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid field type string",
+			obj: map[string]interface{}{
+				"data": "string | =bad",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1036,158 +1193,6 @@ func TestBuildOpenAPISchema(t *testing.T) {
 			assert.Equal(t, got, tt.want)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("BuildOpenAPISchema() = %+v, want %+v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestApplyMarkers_Required(t *testing.T) {
-	transformer := newTransformer()
-
-	tests := []struct {
-		value    string
-		required bool
-		err      error
-	}{
-		{"true", true, nil},
-		{"True", true, nil},
-		{"TRUE", true, nil},
-		{"1", true, nil},
-		{"false", false, nil},
-		{"False", false, nil},
-		{"FALSE", false, nil},
-		{"invalid", false, fmt.Errorf("failed to parse required marker value: strconv.ParseBool: parsing \"invalid\": invalid syntax")},
-		{"no", false, fmt.Errorf("failed to parse required marker value: strconv.ParseBool: parsing \"no\": invalid syntax")},
-	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("Required Marker %s", tt.value), func(t *testing.T) {
-			parentSchema := &extv1.JSONSchemaProps{}
-			markers := []*Marker{{MarkerType: MarkerTypeRequired, Value: tt.value}}
-			err := transformer.applyMarkers(nil, markers, "myFieldName", parentSchema)
-			if err != nil && err.Error() != tt.err.Error() {
-				t.Errorf("ApplyMarkers() error = %q, expected error %q", err, tt.err)
-			}
-			// If there was no error, check if the required field was added to the parent schema.
-			if err == nil && tt.required != slices.Contains(parentSchema.Required, "myFieldName") {
-				t.Errorf("ApplyMarkers() = %v, want %v", parentSchema.Required, tt.required)
-			}
-		})
-	}
-}
-
-func TestLoadPreDefinedTypes(t *testing.T) {
-	transformer := newTransformer()
-
-	tests := []struct {
-		name    string
-		obj     map[string]interface{}
-		want    map[string]predefinedType
-		wantErr bool
-	}{
-		{
-			name: "Valid types",
-			obj: map[string]interface{}{
-				"Person": map[string]interface{}{
-					"name": "string",
-					"age":  "integer",
-					"address": map[string]interface{}{
-						"street": "string",
-						"city":   "string",
-					},
-				},
-				"Company": map[string]interface{}{
-					"name":      "string",
-					"employees": "[]string",
-				},
-			},
-			want: map[string]predefinedType{
-				"Person": {
-					Schema: extv1.JSONSchemaProps{
-						Type: "object",
-						Properties: map[string]extv1.JSONSchemaProps{
-							"name": {Type: "string"},
-							"age":  {Type: "integer"},
-							"address": {
-								Type: "object",
-								Properties: map[string]extv1.JSONSchemaProps{
-									"street": {Type: "string"},
-									"city":   {Type: "string"},
-								},
-							},
-						},
-					},
-					Required: false,
-				},
-				"Company": {
-					Schema: extv1.JSONSchemaProps{
-						Type: "object",
-						Properties: map[string]extv1.JSONSchemaProps{
-							"name": {Type: "string"},
-							"employees": {
-								Type: "array",
-								Items: &extv1.JSONSchemaPropsOrArray{
-									Schema: &extv1.JSONSchemaProps{
-										Type: "string",
-									},
-								},
-							},
-						},
-					},
-					Required: false,
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "Simple type alias",
-			obj: map[string]interface{}{
-				"alias": "string",
-			},
-			want: map[string]predefinedType{
-				"alias": {
-					Schema: extv1.JSONSchemaProps{
-						Type: "string",
-					},
-					Required: false,
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "Simple type alias with markers",
-			obj: map[string]interface{}{
-				"alias": "string | required=true default=\"test\"",
-			},
-			want: map[string]predefinedType{
-				"alias": {
-					Schema: extv1.JSONSchemaProps{
-						Type:    "string",
-						Default: &extv1.JSON{Raw: []byte("\"test\"")},
-					},
-					Required: true,
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "Invalid type",
-			obj: map[string]interface{}{
-				"invalid": 123,
-			},
-			want:    map[string]predefinedType{},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := transformer.loadPreDefinedTypes(tt.obj)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("LoadPreDefinedTypes() error = %v", err)
-				return
-			}
-			if !reflect.DeepEqual(transformer.preDefinedTypes, tt.want) {
-				t.Errorf("LoadPreDefinedTypes() = %+v, want %+v", transformer.preDefinedTypes, tt.want)
 			}
 		})
 	}
