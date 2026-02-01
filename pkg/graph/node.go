@@ -159,7 +159,6 @@ func (n *Node) DeepCopy() *Node {
 		for i, v := range n.Variables {
 			copyVar := *v
 			copyVar.Expressions = slices.Clone(v.Expressions)
-			copyVar.Dependencies = slices.Clone(v.Dependencies)
 			cp.Variables[i] = &copyVar
 		}
 	}

@@ -353,11 +353,6 @@ func (b *Builder) buildRGResource(
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to extract CEL expressions from schema for resource %s: %w", rgResource.ID, err)
 		}
-
-		// Set ExpectedType on each descriptor by converting schema to CEL type with proper naming
-		for i := range fieldDescriptors {
-			setExpectedTypeOnDescriptor(&fieldDescriptors[i], resourceSchema, rgResource.ID)
-		}
 	}
 
 	templateVariables := make([]*variable.ResourceField, 0, len(fieldDescriptors))
@@ -523,7 +518,7 @@ func extractTemplateDependencies(
 				templateVariable.Kind = variable.ResourceVariableKindDynamic
 			}
 
-			templateVariable.AddDependencies(nodeDeps...)
+			// Dependencies are tracked in Expression.References
 			allDeps = append(allDeps, nodeDeps...)
 
 			// Track iterators used in identity fields (name/namespace).
@@ -654,7 +649,6 @@ func (b *Builder) buildInstanceNode(
 		instanceStatusVariables = append(instanceStatusVariables, &variable.ResourceField{
 			FieldDescriptor: statusVariable,
 			Kind:            variable.ResourceVariableKindDynamic,
-			Dependencies:    resourceDeps,
 		})
 	}
 
@@ -766,7 +760,7 @@ func buildStatusSchema(
 				}
 
 				outputType := checkedAST.OutputType()
-				if err := validateExpressionType(outputType, cel.StringType, expression, "status", fieldDescriptor.Path, provider); err != nil {
+				if err := validateExpressionType(outputType, cel.StringType, expression.Original, "status", fieldDescriptor.Path, provider); err != nil {
 					return nil, nil, nil, err
 				}
 			}
@@ -788,8 +782,9 @@ func buildStatusSchema(
 //   - resourceDeps: actual resource dependencies (other resources in the RGD)
 //   - iteratorRefs: references to iterator variables (from forEach dimensions)
 //
-// # Iterator variables are recognized and returned in iteratorRefs for validation
-func extractDependencies(env *cel.Env, expression string, resourceNames []string, iteratorVars []string) (
+// Iterator variables are recognized and returned in iteratorRefs for validation.
+// Also populates expr.References with all referenced identifiers.
+func extractDependencies(env *cel.Env, expr *krocel.Expression, resourceNames []string, iteratorVars []string) (
 	resourceDeps []string,
 	iteratorRefs []string,
 	err error,
@@ -799,9 +794,16 @@ func extractDependencies(env *cel.Env, expression string, resourceNames []string
 	knownIdentifiers = append(knownIdentifiers, iteratorVars...)
 	inspector := ast.NewInspectorWithEnv(env, knownIdentifiers)
 
-	inspectionResult, err := inspector.Inspect(expression)
+	inspectionResult, err := inspector.Inspect(expr.Original)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to inspect expression: %w", err)
+	}
+
+	// Populate expression references
+	for _, dep := range inspectionResult.ResourceDependencies {
+		if !slices.Contains(expr.References, dep.ID) {
+			expr.References = append(expr.References, dep.ID)
+		}
 	}
 
 	for _, resource := range inspectionResult.ResourceDependencies {
@@ -898,25 +900,25 @@ func resolveSchemaAndTypeName(segments []fieldpath.Segment, rootSchema *spec.Sch
 	return currentSchema, typeName, nil
 }
 
-func setExpectedTypeOnDescriptor(descriptor *variable.FieldDescriptor, rootSchema *spec.Schema, resourceID string) {
+// getExpectedTypeForField computes the expected CEL type for a field descriptor.
+// For standalone expressions, the type is derived from the OpenAPI schema at the path.
+// For string templates, the expected type is always string.
+func getExpectedTypeForField(descriptor *variable.FieldDescriptor, rootSchema *spec.Schema, resourceID string) *cel.Type {
 	if !descriptor.StandaloneExpression {
-		descriptor.ExpectedType = cel.StringType
-		return
+		return cel.StringType
 	}
 
 	segments, err := fieldpath.Parse(descriptor.Path)
 	if err != nil {
-		descriptor.ExpectedType = cel.DynType
-		return
+		return cel.DynType
 	}
 
 	schema, typeName, err := resolveSchemaAndTypeName(segments, rootSchema, resourceID)
 	if err != nil {
-		descriptor.ExpectedType = cel.DynType
-		return
+		return cel.DynType
 	}
 
-	descriptor.ExpectedType = getCelTypeFromSchema(schema, typeName)
+	return getCelTypeFromSchema(schema, typeName)
 }
 
 // getCelTypeFromSchema converts an OpenAPI schema to a CEL type with the given type name
@@ -1002,7 +1004,7 @@ func validateNode(node *Node, templatesEnv, schemaEnv *cel.Env, nodeSchema *spec
 	}
 
 	// Validate template expressions (with iterator variables in scope if this is a collection)
-	if err := validateTemplateExpressions(effectiveTemplatesEnv, node, typeProvider); err != nil {
+	if err := validateTemplateExpressions(effectiveTemplatesEnv, node, nodeSchema, typeProvider); err != nil {
 		return err
 	}
 
@@ -1038,9 +1040,9 @@ func validateNode(node *Node, templatesEnv, schemaEnv *cel.Env, nodeSchema *spec
 				return fmt.Errorf("failed to create CEL environment for readyWhen: %w", err)
 			}
 			inspector := ast.NewInspectorWithEnv(readyEnv, []string{allowedVar})
-			result, err := inspector.Inspect(expression)
+			result, err := inspector.Inspect(expression.Original)
 			if err != nil {
-				return fmt.Errorf("failed to inspect readyWhen expression %q: %w", expression, err)
+				return fmt.Errorf("failed to inspect readyWhen expression %q: %w", expression.Original, err)
 			}
 			if len(result.UnknownResources) > 0 {
 				var names []string
@@ -1049,7 +1051,7 @@ func validateNode(node *Node, templatesEnv, schemaEnv *cel.Env, nodeSchema *spec
 				}
 				return fmt.Errorf(
 					"resource %q readyWhen expression %q cannot reference %v - only '%s' is available (use includeWhen for schema-based conditions)",
-					node.Meta.ID, expression, names, allowedVar,
+					node.Meta.ID, expression.Original, names, allowedVar,
 				)
 			}
 		}
@@ -1080,18 +1082,21 @@ func validateNode(node *Node, templatesEnv, schemaEnv *cel.Env, nodeSchema *spec
 // validateTemplateExpressions validates CEL template expressions for a single node.
 // It type-checks that expressions reference valid fields and return the expected types
 // based on the OpenAPI schemas.
-func validateTemplateExpressions(env *cel.Env, node *Node, typeProvider *krocel.DeclTypeProvider) error {
+func validateTemplateExpressions(env *cel.Env, node *Node, nodeSchema *spec.Schema, typeProvider *krocel.DeclTypeProvider) error {
 	for _, templateVariable := range node.Variables {
+		// Compute expected type for this field
+		expectedType := getExpectedTypeForField(&templateVariable.FieldDescriptor, nodeSchema, node.Meta.ID)
+
 		if len(templateVariable.Expressions) == 1 {
 			// Single expression - validate against expected types
 			expression := templateVariable.Expressions[0]
 
 			checkedAST, err := parseAndCheckCELExpression(env, expression)
 			if err != nil {
-				return fmt.Errorf("failed to type-check template expression %q at path %q: %w", expression, templateVariable.Path, err)
+				return fmt.Errorf("failed to type-check template expression %q at path %q: %w", expression.Original, templateVariable.Path, err)
 			}
 			outputType := checkedAST.OutputType()
-			if err := validateExpressionType(outputType, templateVariable.ExpectedType, expression, node.Meta.ID, templateVariable.Path, typeProvider); err != nil {
+			if err := validateExpressionType(outputType, expectedType, expression.Original, node.Meta.ID, templateVariable.Path, typeProvider); err != nil {
 				return err
 			}
 		} else if len(templateVariable.Expressions) > 1 {
@@ -1099,11 +1104,11 @@ func validateTemplateExpressions(env *cel.Env, node *Node, typeProvider *krocel.
 			for _, expression := range templateVariable.Expressions {
 				checkedAST, err := parseAndCheckCELExpression(env, expression)
 				if err != nil {
-					return fmt.Errorf("failed to type-check template expression %q at path %q: %w", expression, templateVariable.Path, err)
+					return fmt.Errorf("failed to type-check template expression %q at path %q: %w", expression.Original, templateVariable.Path, err)
 				}
 
 				outputType := checkedAST.OutputType()
-				if err := validateExpressionType(outputType, templateVariable.ExpectedType, expression, node.Meta.ID, templateVariable.Path, typeProvider); err != nil {
+				if err := validateExpressionType(outputType, expectedType, expression.Original, node.Meta.ID, templateVariable.Path, typeProvider); err != nil {
 					return err
 				}
 			}
@@ -1143,8 +1148,8 @@ func validateExpressionType(outputType, expectedType *cel.Type, expression, reso
 // parseAndCheckCELExpression parses and type-checks a CEL expression.
 // Returns the checked AST on success, or the raw CEL error on failure.
 // Callers should wrap the error with appropriate context.
-func parseAndCheckCELExpression(env *cel.Env, expression string) (*cel.Ast, error) {
-	parsedAST, issues := env.Parse(expression)
+func parseAndCheckCELExpression(env *cel.Env, expr *krocel.Expression) (*cel.Ast, error) {
+	parsedAST, issues := env.Parse(expr.Original)
 	if issues != nil && issues.Err() != nil {
 		return nil, issues.Err()
 	}
@@ -1159,10 +1164,10 @@ func parseAndCheckCELExpression(env *cel.Env, expression string) (*cel.Ast, erro
 
 // validateConditionExpression validates a single condition expression (includeWhen or readyWhen).
 // It parses, type-checks, and verifies the expression returns bool or optional_type(bool).
-func validateConditionExpression(env *cel.Env, expression, conditionType, resourceID string) error {
-	checkedAST, err := parseAndCheckCELExpression(env, expression)
+func validateConditionExpression(env *cel.Env, expr *krocel.Expression, conditionType, resourceID string) error {
+	checkedAST, err := parseAndCheckCELExpression(env, expr)
 	if err != nil {
-		return fmt.Errorf("failed to type-check %s expression %q in resource %q: %w", conditionType, expression, resourceID, err)
+		return fmt.Errorf("failed to type-check %s expression %q in resource %q: %w", conditionType, expr.Original, resourceID, err)
 	}
 
 	// Verify the expression returns bool or optional_type(bool)
@@ -1170,7 +1175,7 @@ func validateConditionExpression(env *cel.Env, expression, conditionType, resour
 	if !krocel.IsBoolOrOptionalBool(outputType) {
 		return fmt.Errorf(
 			"%s expression %q in resource %q must return bool or optional_type(bool), but returns %q",
-			conditionType, expression, resourceID, outputType.String(),
+			conditionType, expr.Original, resourceID, outputType.String(),
 		)
 	}
 
