@@ -368,7 +368,7 @@ func TestGraphBuilder_Validation(t *testing.T) {
 				}, nil, nil),
 			},
 			wantErr: true,
-			errMsg:  "cannot reference [nonexistent] - only resource names are allowed",
+			errMsg:  "references unknown identifiers: [nonexistent]",
 		},
 		{
 			name: "invalid field type in resource spec",
@@ -2542,7 +2542,7 @@ func TestGraphBuilder_ForEachParsing(t *testing.T) {
 					nil),
 			},
 			wantErr: true,
-			errMsg:  "resource \"pods\" readyWhen expression",
+			errMsg:  "resource \"pods\" readyWhen: references unknown identifiers: [pods]",
 		},
 		{
 			name: "collection readyWhen cannot reference other resources",
@@ -2594,7 +2594,7 @@ func TestGraphBuilder_ForEachParsing(t *testing.T) {
 					nil),
 			},
 			wantErr: true,
-			errMsg:  "resource \"workerPods\" readyWhen expression",
+			errMsg:  "resource \"workerPods\" readyWhen: references unknown identifiers: [mainPod]",
 		},
 		{
 			name: "collection with valid each-based readyWhen",

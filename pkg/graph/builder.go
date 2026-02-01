@@ -196,8 +196,8 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 		rgd.Spec.Schema.APIVersion,
 		rgd.Spec.Schema.Kind,
 		*instanceSpecSchema,
-		extv1.JSONSchemaProps{Type: "object"}, // empty status placeholder
-		false,                                  // don't add default fields yet
+		extv1.JSONSchemaProps{}, // empty status placeholder
+		false,                   // don't add default fields yet
 		rgd.Spec.Schema,
 	)
 
@@ -223,6 +223,16 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	}
 	typeProvider := krocel.CreateDeclTypeProvider(celSchemas)
 
+	// Create a single lightweight inspector environment for all AST inspection operations.
+	// This env only declares identifier names (no full schemas) - sufficient for parsing
+	// and finding references, but NOT suitable for type-checking or compilation.
+	nodeNames := maps.Keys(nodes)
+	allIdentifiers := append(nodeNames, SchemaVarName)
+	inspectorEnv, err := krocel.DefaultEnvironment(krocel.WithResourceIDs(allIdentifiers))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create inspector environment: %w", err)
+	}
+
 	// Build the dependency graph by inspecting CEL expressions.
 	// This extracts all resource dependencies and validates that:
 	// 1. All referenced resources are defined in the RGD
@@ -231,7 +241,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	//
 	// We do this BEFORE type checking so that undeclared resource errors
 	// are caught here with clear messages, rather than as CEL type errors.
-	dag, err := b.buildDependencyGraph(nodes)
+	dag, err := b.buildDependencyGraph(nodes, inspectorEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
@@ -244,7 +254,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	// Validate and compile all resource CEL expressions.
 	// Resources can reference schema and other resources - both are in EnvPool.
 	for id, node := range nodes {
-		if err := validateAndCompileNode(node, envPool, schemas[id], typeProvider); err != nil {
+		if err := validateAndCompileNode(node, inspectorEnv, envPool, schemas[id], typeProvider); err != nil {
 			return nil, fmt.Errorf("failed to validate resource %q: %w", id, err)
 		}
 	}
@@ -252,10 +262,10 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	// Build instance status schema using same EnvPool.
 	// Status expressions reference resources (validated to not reference schema).
 	// We infer the status field types from the CEL expression output types.
-	nodeNames := maps.Keys(nodes)
 	statusSchema, statusVariables, statusTemplate, err := buildStatusSchema(
 		rgd.Spec.Schema,
 		nodeNames,
+		inspectorEnv,
 		envPool,
 		typeProvider,
 	)
@@ -274,6 +284,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 		statusVariables,
 		statusTemplate,
 		nodeNames,
+		inspectorEnv,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance node: %w", err)
@@ -435,19 +446,15 @@ func (b *Builder) buildRGResource(
 // resource graph definition. The dependency graph is a directed acyclic graph
 // that represents the relationships between the nodes. The graph is used
 // to determine the order in which the resources should be created in the cluster.
+// Uses the shared inspectorEnv for all AST inspection operations.
 func (b *Builder) buildDependencyGraph(
 	nodes map[string]*Node,
+	inspectorEnv *cel.Env,
 ) (
 	*dag.DirectedAcyclicGraph[string], // directed acyclic graph
 	error,
 ) {
-	// Build node names list for CEL environment.
 	nodeNames := append(maps.Keys(nodes), SchemaVarName)
-
-	env, err := krocel.DefaultEnvironment(krocel.WithResourceIDs(nodeNames))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
-	}
 
 	directedAcyclicGraph := dag.NewDirectedAcyclicGraph[string]()
 	for _, node := range nodes {
@@ -460,7 +467,7 @@ func (b *Builder) buildDependencyGraph(
 		iteratorNames := collectIteratorNames(node)
 
 		// Phase 1: Extract dependencies and classify variables
-		templateDeps, usedIterators, err := extractTemplateDependencies(env, node, nodeNames, iteratorNames)
+		templateDeps, usedIterators, err := extractTemplateDependencies(inspectorEnv, node, nodeNames, iteratorNames)
 		if err != nil {
 			return nil, err
 		}
@@ -481,7 +488,7 @@ func (b *Builder) buildDependencyGraph(
 			}
 		}
 
-		forEachDeps, err := extractForEachDependencies(env, node, nodeNames, iteratorNames)
+		forEachDeps, err := extractForEachDependencies(inspectorEnv, node, nodeNames, iteratorNames)
 		if err != nil {
 			return nil, err
 		}
@@ -600,18 +607,15 @@ func extractForEachDependencies(
 
 // buildInstanceNode creates the instance node from pre-computed status components.
 // This is called after spec schema, status schema, and CRD have been built separately.
+// Uses the shared inspectorEnv for AST inspection.
 func buildInstanceNode(
 	group, apiVersion, kind string,
 	statusVariables []variable.FieldDescriptor,
 	statusTemplate map[string]interface{},
 	nodeNames []string,
+	inspectorEnv *cel.Env,
 ) (*Node, error) {
 	gvr := metadata.GetResourceGraphDefinitionInstanceGVR(group, apiVersion, kind)
-
-	env, err := krocel.DefaultEnvironment(krocel.WithResourceIDs(nodeNames))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
-	}
 
 	// Collect dependencies for instance status fields
 	var instanceDeps []string
@@ -624,7 +628,7 @@ func buildInstanceNode(
 		// Extract dependencies from ALL expressions in the field (for multi-expression templates)
 		var resourceDeps []string
 		for _, expr := range statusVariable.Expressions {
-			deps, _, err := extractDependencies(env, expr, nodeNames, nil)
+			deps, _, err := extractDependencies(inspectorEnv, expr, nodeNames, nil)
 			if err != nil {
 				return nil, fmt.Errorf("failed to extract dependencies from expression %q: %w", expr, err)
 			}
@@ -697,11 +701,12 @@ func buildInstanceSpecSchema(rgSchema *v1alpha1.Schema) (*extv1.JSONSchemaProps,
 
 // buildStatusSchema builds the status schema for the instance resource.
 // The status schema is inferred from the CEL expressions in the status field
-// using CEL type checking. Uses the provided EnvPool for compilation.
+// using CEL type checking. Uses the shared inspectorEnv for validation and EnvPool for compilation.
 // Returns: (schema, fieldDescriptors, statusTemplate, error)
 func buildStatusSchema(
 	rgSchema *v1alpha1.Schema,
 	nodeNames []string,
+	inspectorEnv *cel.Env,
 	envPool *krocel.EnvPool,
 	typeProvider *krocel.DeclTypeProvider,
 ) (
@@ -729,27 +734,9 @@ func buildStatusSchema(
 	// Verify status expressions don't reference schema and populate References
 	for _, fieldDescriptor := range fieldDescriptors {
 		for _, expression := range fieldDescriptor.Expressions {
-			// Create environment with only resource names (not schema)
-			statusEnv, err := krocel.DefaultEnvironment(
-				krocel.WithResourceIDs(nodeNames),
-			)
+			result, err := inspectExpression(inspectorEnv, expression.Original, nodeNames)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to create CEL environment for status validation: %w", err)
-			}
-			inspector := ast.NewInspectorWithEnv(statusEnv, nodeNames)
-			result, err := inspector.Inspect(expression.Original)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to inspect status expression %q: %w", expression.Original, err)
-			}
-			if len(result.UnknownResources) > 0 {
-				var names []string
-				for _, r := range result.UnknownResources {
-					names = append(names, r.ID)
-				}
-				return nil, nil, nil, fmt.Errorf(
-					"instance status field %q expression %q cannot reference %v - only resource names are allowed (schema is not available in status)",
-					fieldDescriptor.Path, expression.Original, names,
-				)
+				return nil, nil, nil, fmt.Errorf("status field %q expression %q: %w", fieldDescriptor.Path, expression.Original, err)
 			}
 			// Populate expression.References for restricted environment compilation
 			for _, dep := range result.ResourceDependencies {
@@ -809,6 +796,27 @@ func buildStatusSchema(
 	}
 
 	return statusSchema, fieldDescriptors, unstructuredStatus, nil
+}
+
+// inspectExpression inspects a CEL expression and validates that it doesn't reference
+// unknown identifiers or functions. Returns the inspection result for further processing.
+func inspectExpression(env *cel.Env, expr string, knownIdentifiers []string) (ast.ExpressionInspection, error) {
+	inspector := ast.NewInspectorWithEnv(env, knownIdentifiers)
+	result, err := inspector.Inspect(expr)
+	if err != nil {
+		return ast.ExpressionInspection{}, err
+	}
+	if len(result.UnknownResources) > 0 {
+		var names []string
+		for _, r := range result.UnknownResources {
+			names = append(names, r.ID)
+		}
+		return ast.ExpressionInspection{}, fmt.Errorf("references unknown identifiers: %v", names)
+	}
+	if len(result.UnknownFunctions) > 0 {
+		return ast.ExpressionInspection{}, fmt.Errorf("uses unknown functions: %v", result.UnknownFunctions)
+	}
+	return result, nil
 }
 
 // extractDependencies extracts the dependencies from the given CEL expression.
@@ -1014,16 +1022,8 @@ func lookupSchemaAtPath(schema *spec.Schema, path string) *spec.Schema {
 // - includeWhen expressions (conditional resource creation)
 // - readyWhen expressions (resource readiness conditions)
 //
-// It uses EnvPool to get minimal environments with only the referenced schemas declared.
-// After type-checking, expressions are compiled and their Program field is set.
-func validateAndCompileNode(node *Node, envPool *krocel.EnvPool, nodeSchema *spec.Schema, typeProvider *krocel.DeclTypeProvider) error {
-	// Get a base environment with all schemas for forEach validation
-	// (forEach can reference any node for collection chaining)
-	baseEnv, err := envPool.GetOrCreate(nil, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get base CEL environment: %w", err)
-	}
-
+// Uses the shared inspectorEnv for AST inspection and EnvPool for typed compilation.
+func validateAndCompileNode(node *Node, inspectorEnv *cel.Env, envPool *krocel.EnvPool, nodeSchema *spec.Schema, typeProvider *krocel.DeclTypeProvider) error {
 	// Track iterator types for extending template environment
 	var iteratorTypes map[string]*cel.Type
 
@@ -1045,29 +1045,9 @@ func validateAndCompileNode(node *Node, envPool *krocel.EnvPool, nodeSchema *spe
 	if len(node.IncludeWhen) > 0 {
 		// includeWhen expressions can ONLY reference the schema (instance spec).
 		// At runtime, includeWhen is evaluated before any resources are created.
-
-		// First verify expressions don't reference invalid variables
 		for _, expression := range node.IncludeWhen {
-			includeEnv, err := krocel.DefaultEnvironment(
-				krocel.WithResourceIDs([]string{SchemaVarName}),
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create CEL environment for includeWhen: %w", err)
-			}
-			inspector := ast.NewInspectorWithEnv(includeEnv, []string{SchemaVarName})
-			result, err := inspector.Inspect(expression.Original)
-			if err != nil {
-				return fmt.Errorf("failed to inspect includeWhen expression %q: %w", expression.Original, err)
-			}
-			if len(result.UnknownResources) > 0 {
-				var names []string
-				for _, r := range result.UnknownResources {
-					names = append(names, r.ID)
-				}
-				return fmt.Errorf(
-					"resource %q includeWhen expression %q cannot reference %v - only '%s' is available (use readyWhen for resource-based conditions)",
-					node.Meta.ID, expression.Original, names, SchemaVarName,
-				)
+			if _, err := inspectExpression(inspectorEnv, expression.Original, []string{SchemaVarName}); err != nil {
+				return fmt.Errorf("resource %q includeWhen: %w", node.Meta.ID, err)
 			}
 		}
 
@@ -1090,28 +1070,9 @@ func validateAndCompileNode(node *Node, envPool *krocel.EnvPool, nodeSchema *spe
 			allowedVar = EachVarName
 		}
 
-		// First verify expressions don't reference invalid variables
 		for _, expression := range node.ReadyWhen {
-			readyEnv, err := krocel.DefaultEnvironment(
-				krocel.WithResourceIDs([]string{allowedVar}),
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create CEL environment for readyWhen: %w", err)
-			}
-			inspector := ast.NewInspectorWithEnv(readyEnv, []string{allowedVar})
-			result, err := inspector.Inspect(expression.Original)
-			if err != nil {
-				return fmt.Errorf("failed to inspect readyWhen expression %q: %w", expression.Original, err)
-			}
-			if len(result.UnknownResources) > 0 {
-				var names []string
-				for _, r := range result.UnknownResources {
-					names = append(names, r.ID)
-				}
-				return fmt.Errorf(
-					"resource %q readyWhen expression %q cannot reference %v - only '%s' is available (use includeWhen for schema-based conditions)",
-					node.Meta.ID, expression.Original, names, allowedVar,
-				)
+			if _, err := inspectExpression(inspectorEnv, expression.Original, []string{allowedVar}); err != nil {
+				return fmt.Errorf("resource %q readyWhen: %w", node.Meta.ID, err)
 			}
 		}
 
@@ -1134,9 +1095,6 @@ func validateAndCompileNode(node *Node, envPool *krocel.EnvPool, nodeSchema *spe
 			return err
 		}
 	}
-
-	// Silence unused variable warning for baseEnv (used indirectly through envPool)
-	_ = baseEnv
 
 	return nil
 }
