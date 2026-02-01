@@ -49,6 +49,22 @@ type Expression struct {
 	Program cel.Program
 }
 
+// NewUncompiled creates an uncompiled Expression with only Original set.
+// Use this in parser/tests where References and Program are set later by builder.
+func NewUncompiled(expr string) *Expression {
+	return &Expression{Original: expr}
+}
+
+// NewUncompiledSlice creates a slice of uncompiled Expressions from strings.
+// Use this in parser/tests for multi-expression fields like string templates.
+func NewUncompiledSlice(exprs ...string) []*Expression {
+	result := make([]*Expression, len(exprs))
+	for i, expr := range exprs {
+		result[i] = &Expression{Original: expr}
+	}
+	return result
+}
+
 // Eval evaluates the compiled expression and returns the result.
 func (e *Expression) Eval(ctx map[string]any) (any, error) {
 	out, _, err := e.Program.Eval(ctx)

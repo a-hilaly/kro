@@ -26,36 +26,26 @@ import (
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
 
-// EnvSet provides scoped CEL environments for expression compilation.
+// EnvPool constructs minimal, reusable CEL environments for a specific RGD.
 //
-// Each expression in an RGD references a specific set of identifiers (e.g.,
-// "schema", "vpc", "deployment"). EnvSet creates CEL environments that declare
-// exactly those identifiers, ensuring compile-time validation matches runtime:
-// if an expression references an undeclared identifier, compilation fails.
+// The inspector detects which identifiers each expression references (e.g.,
+// "schema", "vpc"). EnvPool then creates environments declaring exactly those
+// identifiers, ensuring compile-time validation matches runtime: if an
+// expression references an undeclared identifier, compilation fails.
 //
 // Architecture:
+//   - Base environment: CEL extensions (strings, lists, etc.) + shared type
+//     provider (all schemas registered) + no variable declarations
+//   - Extended environments: Base + variable declarations for specific references
+//     (e.g., env with "schema" declared, env with "schema,vpc" declared)
 //
-//	┌─────────────────────────────────────────────────────────────────┐
-//	│  Base Environment                                               │
-//	│  - CEL extensions (strings, lists, etc.)                        │
-//	│  - Shared type provider (all schemas registered)                │
-//	│  - No variable declarations                                     │
-//	└─────────────────────────────────────────────────────────────────┘
-//	                              │
-//	           ┌──────────────────┼──────────────────┐
-//	           ▼                  ▼                  ▼
-//	   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-//	   │ Env: schema  │   │ Env: schema, │   │ Env: vpc,    │
-//	   │              │   │      vpc     │   │      config  │
-//	   └──────────────┘   └──────────────┘   └──────────────┘
-//	   (includeWhen)      (template expr)    (template expr)
+// Environments are cached by sorted reference names, so expressions with the
+// same references share an environment. Future: could be reused across RGDs
+// that reference similar resource GVKs.
 //
-// Environments are cached by their reference set, so expressions with the same
-// references share an environment.
-//
-// Thread safety: EnvSet is NOT thread-safe (single-threaded build-time use).
-// The cel.Env and compiled cel.Programs ARE thread-safe for concurrent use.
-type EnvSet struct {
+// Thread safety: EnvPool is NOT thread-safe (build-time use only).
+// The cel.Env and compiled cel.Programs ARE thread-safe for concurrent evaluation.
+type EnvPool struct {
 	// declTypes maps identifiers to their CEL DeclTypes.
 	// Computed once from schemas during construction.
 	declTypes map[string]*apiservercel.DeclType
@@ -67,12 +57,12 @@ type EnvSet struct {
 	envs map[string]*cel.Env
 }
 
-// NewEnvSet creates an EnvSet from the given schemas.
+// NewEnvPool creates an EnvPool from the given schemas.
 //
 // The schemas map keys are identifiers that expressions may reference
 // (e.g., "schema", "vpc", "deployment"). Values are OpenAPI schemas
 // used for CEL type checking.
-func NewEnvSet(schemas map[string]*spec.Schema) (*EnvSet, error) {
+func NewEnvPool(schemas map[string]*spec.Schema) (*EnvPool, error) {
 	// Convert schemas to CEL DeclTypes
 	declTypes := make(map[string]*apiservercel.DeclType, len(schemas))
 	allDeclTypes := make([]*apiservercel.DeclType, 0, len(schemas))
@@ -107,7 +97,7 @@ func NewEnvSet(schemas map[string]*spec.Schema) (*EnvSet, error) {
 		return nil, fmt.Errorf("create base environment: %w", err)
 	}
 
-	return &EnvSet{
+	return &EnvPool{
 		declTypes: declTypes,
 		baseEnv:   baseEnv,
 		envs:      make(map[string]*cel.Env),
@@ -122,7 +112,7 @@ func NewEnvSet(schemas map[string]*spec.Schema) (*EnvSet, error) {
 //
 // Returns an error if any reference is unknown (not in the schemas passed to
 // NewEnvSet).
-func (s *EnvSet) GetOrCreate(references []string) (*cel.Env, error) {
+func (s *EnvPool) GetOrCreate(references []string) (*cel.Env, error) {
 	key := s.cacheKey(references)
 	if env, ok := s.envs[key]; ok {
 		return env, nil
@@ -138,7 +128,7 @@ func (s *EnvSet) GetOrCreate(references []string) (*cel.Env, error) {
 }
 
 // extendBaseEnv creates a new environment with the given references declared.
-func (s *EnvSet) extendBaseEnv(references []string) (*cel.Env, error) {
+func (s *EnvPool) extendBaseEnv(references []string) (*cel.Env, error) {
 	if len(references) == 0 {
 		return s.baseEnv, nil
 	}
@@ -156,13 +146,13 @@ func (s *EnvSet) extendBaseEnv(references []string) (*cel.Env, error) {
 }
 
 // cacheKey normalizes references into a cache key.
-func (s *EnvSet) cacheKey(references []string) string {
+func (s *EnvPool) cacheKey(references []string) string {
 	sorted := slices.Clone(references)
 	slices.Sort(sorted)
 	return strings.Join(sorted, ",")
 }
 
 // Size returns the number of cached environments.
-func (s *EnvSet) Size() int {
+func (s *EnvPool) Size() int {
 	return len(s.envs)
 }
