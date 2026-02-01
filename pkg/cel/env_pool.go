@@ -104,27 +104,49 @@ func NewEnvPool(schemas map[string]*spec.Schema) (*EnvPool, error) {
 	}, nil
 }
 
-// GetOrCreate returns a CEL environment declaring exactly the given references.
+// GetOrCreate returns a CEL environment declaring the given references and extra types.
 //
 // The returned environment can parse, type-check, and compile expressions that
-// use those references. Environments are cached, so repeated calls with the
-// same references return the same environment.
+// use those references. Base environments (without extraTypes) are cached, so
+// repeated calls with the same references return the same environment.
 //
-// Returns an error if any reference is unknown (not in the schemas passed to
-// NewEnvSet).
-func (s *EnvPool) GetOrCreate(references []string) (*cel.Env, error) {
-	key := s.cacheKey(references)
-	if env, ok := s.envs[key]; ok {
-		return env, nil
+// extraTypes allows declaring additional variables (e.g., iterator variables from
+// forEach) that aren't in the schema set. These are filtered from references and
+// added via Extend(). Environments with extraTypes are NOT cached to avoid
+// conflicts when the same variable name has different types across nodes.
+//
+// Returns an error if any reference (after filtering extraTypes) is unknown.
+func (s *EnvPool) GetOrCreate(references []string, extraTypes map[string]*cel.Type) (*cel.Env, error) {
+	// Filter extraTypes keys from references
+	var schemaRefs []string
+	for _, ref := range references {
+		if _, isExtra := extraTypes[ref]; !isExtra {
+			schemaRefs = append(schemaRefs, ref)
+		}
 	}
 
-	env, err := s.extendBaseEnv(references)
-	if err != nil {
-		return nil, err
+	// Get/create cached base env for schema references
+	key := s.cacheKey(schemaRefs)
+	baseEnv, ok := s.envs[key]
+	if !ok {
+		var err error
+		baseEnv, err = s.extendBaseEnv(schemaRefs)
+		if err != nil {
+			return nil, err
+		}
+		s.envs[key] = baseEnv
 	}
 
-	s.envs[key] = env
-	return env, nil
+	// Extend with extra types if any (not cached)
+	if len(extraTypes) > 0 {
+		var decls []cel.EnvOption
+		for name, celType := range extraTypes {
+			decls = append(decls, cel.Variable(name, celType))
+		}
+		return baseEnv.Extend(decls...)
+	}
+
+	return baseEnv, nil
 }
 
 // extendBaseEnv creates a new environment with the given references declared.
