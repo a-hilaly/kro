@@ -726,7 +726,7 @@ func buildStatusSchema(
 	// At runtime, status is populated after resources are created.
 	nodeNames := maps.Keys(nodes)
 
-	// Verify status expressions don't reference schema
+	// Verify status expressions don't reference schema and populate References
 	for _, fieldDescriptor := range fieldDescriptors {
 		for _, expression := range fieldDescriptor.Expressions {
 			// Create environment with only resource names (not schema)
@@ -751,14 +751,21 @@ func buildStatusSchema(
 					fieldDescriptor.Path, expression.Original, names,
 				)
 			}
+			// Populate expression.References for restricted environment compilation
+			for _, dep := range result.ResourceDependencies {
+				if !slices.Contains(expression.References, dep.ID) {
+					expression.References = append(expression.References, dep.ID)
+				}
+			}
 		}
 	}
 
 	schemas := collectNodeSchemas(nodes, nodeSchemas)
 
-	env, err := krocel.TypedEnvironment(schemas)
+	// Create EnvPool for restricted environment compilation
+	envPool, err := krocel.NewEnvPool(schemas)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create typed CEL environment: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create CEL environment pool: %w", err)
 	}
 
 	provider := krocel.CreateDeclTypeProvider(schemas)
@@ -770,6 +777,12 @@ func buildStatusSchema(
 			// Single standalone expression - use its output type
 			expression := fieldDescriptor.Expressions[0]
 
+			// Get environment restricted to only referenced schemas
+			env, err := envPool.GetOrCreate(expression.References, nil)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to get CEL environment for status expression %q: %w", expression.Original, err)
+			}
+
 			checkedAST, err := parseCheckAndCompile(env, expression)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to type-check status expression %q at path %q: %w", expression, fieldDescriptor.Path, err)
@@ -779,6 +792,12 @@ func buildStatusSchema(
 		} else {
 			// String interpolation - validate all expressions and result is string
 			for _, expression := range fieldDescriptor.Expressions {
+				// Get environment restricted to only referenced schemas
+				env, err := envPool.GetOrCreate(expression.References, nil)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to get CEL environment for status expression %q: %w", expression.Original, err)
+				}
+
 				checkedAST, err := parseCheckAndCompile(env, expression)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to type-check status expression %q at path %q: %w", expression, fieldDescriptor.Path, err)
