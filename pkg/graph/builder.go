@@ -722,6 +722,38 @@ func buildStatusSchema(
 		return nil, nil, nil, fmt.Errorf("failed to extract CEL expressions from status: %w", err)
 	}
 
+	// Instance status expressions can ONLY reference resources, not schema.
+	// At runtime, status is populated after resources are created.
+	nodeNames := maps.Keys(nodes)
+
+	// Verify status expressions don't reference schema
+	for _, fieldDescriptor := range fieldDescriptors {
+		for _, expression := range fieldDescriptor.Expressions {
+			// Create environment with only resource names (not schema)
+			statusEnv, err := krocel.DefaultEnvironment(
+				krocel.WithResourceIDs(nodeNames),
+			)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to create CEL environment for status validation: %w", err)
+			}
+			inspector := ast.NewInspectorWithEnv(statusEnv, nodeNames)
+			result, err := inspector.Inspect(expression.Original)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to inspect status expression %q: %w", expression.Original, err)
+			}
+			if len(result.UnknownResources) > 0 {
+				var names []string
+				for _, r := range result.UnknownResources {
+					names = append(names, r.ID)
+				}
+				return nil, nil, nil, fmt.Errorf(
+					"instance status field %q expression %q cannot reference %v - only resource names are allowed (schema is not available in status)",
+					fieldDescriptor.Path, expression.Original, names,
+				)
+			}
+		}
+	}
+
 	schemas := collectNodeSchemas(nodes, nodeSchemas)
 
 	env, err := krocel.TypedEnvironment(schemas)

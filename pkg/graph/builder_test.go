@@ -368,7 +368,7 @@ func TestGraphBuilder_Validation(t *testing.T) {
 				}, nil, nil),
 			},
 			wantErr: true,
-			errMsg:  "undeclared reference to 'nonexistent'",
+			errMsg:  "cannot reference [nonexistent] - only resource names are allowed",
 		},
 		{
 			name: "invalid field type in resource spec",
