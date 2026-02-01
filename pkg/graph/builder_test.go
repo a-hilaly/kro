@@ -263,7 +263,7 @@ func TestGraphBuilder_Validation(t *testing.T) {
 				}, nil, nil),
 			},
 			wantErr: true,
-			errMsg:  "found unknown resources",
+			errMsg:  "references unknown identifiers",
 		},
 		{
 			name: "valid VPC with valid conditional subnets",
@@ -745,7 +745,7 @@ func TestGraphBuilder_DependencyValidation(t *testing.T) {
 				}, nil, nil),
 			},
 			wantErr: true,
-			errMsg:  "found unknown resources",
+			errMsg:  "references unknown identifiers",
 		},
 		{
 			name: "cyclic dependency",

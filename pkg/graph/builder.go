@@ -201,6 +201,35 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 		rgd.Spec.Schema,
 	)
 
+	// Create a single expression inspector for all AST inspection operations.
+	// This uses a lightweight env that only declares identifier names (no full schemas) -
+	// sufficient for parsing and finding references, but NOT for type-checking or compilation.
+	nodeNames := maps.Keys(nodes)
+	allIdentifiers := append(nodeNames, SchemaVarName, EachVarName)
+	inspectorEnv, err := krocel.DefaultEnvironment(krocel.WithResourceIDs(allIdentifiers))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create inspector environment: %w", err)
+	}
+	inspector := ast.NewInspectorWithEnv(inspectorEnv, allIdentifiers)
+
+	// Build the dependency graph by inspecting CEL expressions.
+	// This extracts all resource dependencies and validates that:
+	// 1. All referenced resources are defined in the RGD
+	// 2. There are no unknown functions
+	// 3. The dependency graph is acyclic
+	//
+	// We do this BEFORE type checking so that undeclared resource errors
+	// are caught here with clear messages, rather than as CEL type errors.
+	dag, err := b.buildDependencyGraph(nodes, inspector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+	// Ensure the graph is acyclic and get the topological order of resources.
+	topologicalOrder, err := dag.TopologicalSort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get topological order: %w", err)
+	}
+
 	// Collect all schemas for CEL validation:
 	// - Resource schemas (wrapped as lists for collections)
 	// - Instance spec schema as "schema" variable (extracted from CRD, without status)
@@ -214,7 +243,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	}
 	celSchemas[SchemaVarName] = schemaWithoutStatus
 
-	// Create a single EnvPool for all CEL operations.
+	// Create EnvPool for CEL type-checking and compilation.
 	// EnvPool creates minimal environments declaring only the referenced schemas,
 	// ensuring compile-time validation matches runtime behavior.
 	envPool, err := krocel.NewEnvPool(celSchemas)
@@ -223,38 +252,10 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	}
 	typeProvider := krocel.CreateDeclTypeProvider(celSchemas)
 
-	// Create a single lightweight inspector environment for all AST inspection operations.
-	// This env only declares identifier names (no full schemas) - sufficient for parsing
-	// and finding references, but NOT suitable for type-checking or compilation.
-	nodeNames := maps.Keys(nodes)
-	allIdentifiers := append(nodeNames, SchemaVarName)
-	inspectorEnv, err := krocel.DefaultEnvironment(krocel.WithResourceIDs(allIdentifiers))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create inspector environment: %w", err)
-	}
-
-	// Build the dependency graph by inspecting CEL expressions.
-	// This extracts all resource dependencies and validates that:
-	// 1. All referenced resources are defined in the RGD
-	// 2. There are no unknown functions
-	// 3. The dependency graph is acyclic
-	//
-	// We do this BEFORE type checking so that undeclared resource errors
-	// are caught here with clear messages, rather than as CEL type errors.
-	dag, err := b.buildDependencyGraph(nodes, inspectorEnv)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
-	}
-	// Ensure the graph is acyclic and get the topological order of resources.
-	topologicalOrder, err := dag.TopologicalSort()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get topological order: %w", err)
-	}
-
 	// Validate and compile all resource CEL expressions.
 	// Resources can reference schema and other resources - both are in EnvPool.
 	for id, node := range nodes {
-		if err := validateAndCompileNode(node, inspectorEnv, envPool, schemas[id], typeProvider); err != nil {
+		if err := validateAndCompileNode(node, inspector, envPool, schemas[id], typeProvider); err != nil {
 			return nil, fmt.Errorf("failed to validate resource %q: %w", id, err)
 		}
 	}
@@ -265,7 +266,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	statusSchema, statusVariables, statusTemplate, err := buildStatusSchema(
 		rgd.Spec.Schema,
 		nodeNames,
-		inspectorEnv,
+		inspector,
 		envPool,
 		typeProvider,
 	)
@@ -284,7 +285,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 		statusVariables,
 		statusTemplate,
 		nodeNames,
-		inspectorEnv,
+		inspector,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance node: %w", err)
@@ -446,10 +447,9 @@ func (b *Builder) buildRGResource(
 // resource graph definition. The dependency graph is a directed acyclic graph
 // that represents the relationships between the nodes. The graph is used
 // to determine the order in which the resources should be created in the cluster.
-// Uses the shared inspectorEnv for all AST inspection operations.
 func (b *Builder) buildDependencyGraph(
 	nodes map[string]*Node,
-	inspectorEnv *cel.Env,
+	inspector *ast.Inspector,
 ) (
 	*dag.DirectedAcyclicGraph[string], // directed acyclic graph
 	error,
@@ -467,7 +467,7 @@ func (b *Builder) buildDependencyGraph(
 		iteratorNames := collectIteratorNames(node)
 
 		// Phase 1: Extract dependencies and classify variables
-		templateDeps, usedIterators, err := extractTemplateDependencies(inspectorEnv, node, nodeNames, iteratorNames)
+		templateDeps, usedIterators, err := extractTemplateDependencies(inspector, node, nodeNames, iteratorNames)
 		if err != nil {
 			return nil, err
 		}
@@ -488,7 +488,7 @@ func (b *Builder) buildDependencyGraph(
 			}
 		}
 
-		forEachDeps, err := extractForEachDependencies(inspectorEnv, node, nodeNames, iteratorNames)
+		forEachDeps, err := extractForEachDependencies(inspector, node, nodeNames, iteratorNames)
 		if err != nil {
 			return nil, err
 		}
@@ -523,7 +523,7 @@ func collectIteratorNames(node *Node) []string {
 //   - For namespaced resources: metadata.name or metadata.namespace
 //   - For cluster-scoped resources: metadata.name only
 func extractTemplateDependencies(
-	env *cel.Env,
+	inspector *ast.Inspector,
 	node *Node,
 	nodeNames, iteratorNames []string,
 ) ([]string, []string, error) {
@@ -532,7 +532,7 @@ func extractTemplateDependencies(
 
 	for _, templateVariable := range node.Variables {
 		for _, expression := range templateVariable.Expressions {
-			nodeDeps, iteratorRefs, err := extractDependencies(env, expression, nodeNames, iteratorNames)
+			nodeDeps, iteratorRefs, err := extractDependencies(inspector, expression, nodeNames, iteratorNames)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to extract dependencies: %w", err)
 			}
@@ -579,7 +579,7 @@ func extractTemplateDependencies(
 // Iterator variables used in templates (e.g ${item}) are NOT DAG dependencies -
 // they're local bindings resolved during ExpandCollection.
 func extractForEachDependencies(
-	env *cel.Env,
+	inspector *ast.Inspector,
 	node *Node,
 	nodeNames, iteratorNames []string,
 ) ([]string, error) {
@@ -588,7 +588,7 @@ func extractForEachDependencies(
 	for _, iter := range node.ForEach {
 		// Only pass iteratorNames - we want to detect iterator cross-references.
 		// schema references in forEach are valid (e.g schema.spec.regions).
-		nodeDeps, iteratorRefs, err := extractDependencies(env, iter.Expression, nodeNames, iteratorNames)
+		nodeDeps, iteratorRefs, err := extractDependencies(inspector, iter.Expression, nodeNames, iteratorNames)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract dependencies from forEach iterator %q: %w", iter.Name, err)
 		}
@@ -613,7 +613,7 @@ func buildInstanceNode(
 	statusVariables []variable.FieldDescriptor,
 	statusTemplate map[string]interface{},
 	nodeNames []string,
-	inspectorEnv *cel.Env,
+	inspector *ast.Inspector,
 ) (*Node, error) {
 	gvr := metadata.GetResourceGraphDefinitionInstanceGVR(group, apiVersion, kind)
 
@@ -628,7 +628,7 @@ func buildInstanceNode(
 		// Extract dependencies from ALL expressions in the field (for multi-expression templates)
 		var resourceDeps []string
 		for _, expr := range statusVariable.Expressions {
-			deps, _, err := extractDependencies(inspectorEnv, expr, nodeNames, nil)
+			deps, _, err := extractDependencies(inspector, expr, nodeNames, nil)
 			if err != nil {
 				return nil, fmt.Errorf("failed to extract dependencies from expression %q: %w", expr, err)
 			}
@@ -706,7 +706,7 @@ func buildInstanceSpecSchema(rgSchema *v1alpha1.Schema) (*extv1.JSONSchemaProps,
 func buildStatusSchema(
 	rgSchema *v1alpha1.Schema,
 	nodeNames []string,
-	inspectorEnv *cel.Env,
+	inspector *ast.Inspector,
 	envPool *krocel.EnvPool,
 	typeProvider *krocel.DeclTypeProvider,
 ) (
@@ -734,7 +734,7 @@ func buildStatusSchema(
 	// Verify status expressions don't reference schema and populate References
 	for _, fieldDescriptor := range fieldDescriptors {
 		for _, expression := range fieldDescriptor.Expressions {
-			result, err := inspectExpression(inspectorEnv, expression.Original, nodeNames)
+			result, err := inspectExpressionRestricted(inspector, expression.Original, nodeNames)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("status field %q expression %q: %w", fieldDescriptor.Path, expression.Original, err)
 			}
@@ -798,14 +798,23 @@ func buildStatusSchema(
 	return statusSchema, fieldDescriptors, unstructuredStatus, nil
 }
 
-// inspectExpression inspects a CEL expression and validates that it doesn't reference
-// unknown identifiers or functions. Returns the inspection result for further processing.
-func inspectExpression(env *cel.Env, expr string, knownIdentifiers []string) (ast.ExpressionInspection, error) {
-	inspector := ast.NewInspectorWithEnv(env, knownIdentifiers)
+// inspectExpressionRestricted uses the shared inspector to parse an expression,
+// then validates that only the allowed identifiers are referenced.
+// This is used for restricted contexts like includeWhen (only schema) or readyWhen (only self).
+func inspectExpressionRestricted(inspector *ast.Inspector, expr string, allowedIdentifiers []string) (ast.ExpressionInspection, error) {
 	result, err := inspector.Inspect(expr)
 	if err != nil {
 		return ast.ExpressionInspection{}, err
 	}
+
+	// Check that only allowed identifiers are referenced
+	for _, dep := range result.ResourceDependencies {
+		if !slices.Contains(allowedIdentifiers, dep.ID) {
+			return ast.ExpressionInspection{}, fmt.Errorf("references unknown identifiers: [%s]", dep.ID)
+		}
+	}
+
+	// Unknown resources are truly unknown (not in the shared inspector's known set)
 	if len(result.UnknownResources) > 0 {
 		var names []string
 		for _, r := range result.UnknownResources {
@@ -826,16 +835,11 @@ func inspectExpression(env *cel.Env, expr string, knownIdentifiers []string) (as
 //
 // Iterator variables are recognized and returned in iteratorRefs for validation.
 // Also populates expr.References with all referenced identifiers.
-func extractDependencies(env *cel.Env, expr *krocel.Expression, resourceNames []string, iteratorVars []string) (
+func extractDependencies(inspector *ast.Inspector, expr *krocel.Expression, resourceNames []string, iteratorVars []string) (
 	resourceDeps []string,
 	iteratorRefs []string,
 	err error,
 ) {
-	// SchemaVarName is always available - add it to known identifiers so it's not flagged as unknown
-	knownIdentifiers := append(resourceNames, SchemaVarName)
-	knownIdentifiers = append(knownIdentifiers, iteratorVars...)
-	inspector := ast.NewInspectorWithEnv(env, knownIdentifiers)
-
 	inspectionResult, err := inspector.Inspect(expr.Original)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to inspect expression: %w", err)
@@ -853,23 +857,31 @@ func extractDependencies(env *cel.Env, expr *krocel.Expression, resourceNames []
 		if resource.ID == SchemaVarName {
 			continue
 		}
-		// Track iterator vars separately for validation
-		if slices.Contains(iteratorVars, resource.ID) {
-			if !slices.Contains(iteratorRefs, resource.ID) {
-				iteratorRefs = append(iteratorRefs, resource.ID)
-			}
-			continue
-		}
 		// Everything else is a resource dependency
 		if !slices.Contains(resourceDeps, resource.ID) {
 			resourceDeps = append(resourceDeps, resource.ID)
 		}
 	}
-	if len(inspectionResult.UnknownResources) > 0 {
-		return nil, nil, fmt.Errorf("found unknown resources in CEL expression: [%v]", inspectionResult.UnknownResources)
+
+	// Handle unknown resources - they might be iterator variables
+	for _, unknown := range inspectionResult.UnknownResources {
+		if slices.Contains(iteratorVars, unknown.ID) {
+			// It's an iterator variable - track it separately
+			if !slices.Contains(iteratorRefs, unknown.ID) {
+				iteratorRefs = append(iteratorRefs, unknown.ID)
+			}
+			// Also add to references
+			if !slices.Contains(expr.References, unknown.ID) {
+				expr.References = append(expr.References, unknown.ID)
+			}
+		} else {
+			// Truly unknown resource
+			return nil, nil, fmt.Errorf("references unknown identifiers: [%s]", unknown.ID)
+		}
 	}
+
 	if len(inspectionResult.UnknownFunctions) > 0 {
-		return nil, nil, fmt.Errorf("found unknown functions in CEL expression: [%v]", inspectionResult.UnknownFunctions)
+		return nil, nil, fmt.Errorf("uses unknown functions: %v", inspectionResult.UnknownFunctions)
 	}
 	return resourceDeps, iteratorRefs, nil
 }
@@ -1023,7 +1035,7 @@ func lookupSchemaAtPath(schema *spec.Schema, path string) *spec.Schema {
 // - readyWhen expressions (resource readiness conditions)
 //
 // Uses the shared inspectorEnv for AST inspection and EnvPool for typed compilation.
-func validateAndCompileNode(node *Node, inspectorEnv *cel.Env, envPool *krocel.EnvPool, nodeSchema *spec.Schema, typeProvider *krocel.DeclTypeProvider) error {
+func validateAndCompileNode(node *Node, inspector *ast.Inspector, envPool *krocel.EnvPool, nodeSchema *spec.Schema, typeProvider *krocel.DeclTypeProvider) error {
 	// Track iterator types for extending template environment
 	var iteratorTypes map[string]*cel.Type
 
@@ -1046,7 +1058,7 @@ func validateAndCompileNode(node *Node, inspectorEnv *cel.Env, envPool *krocel.E
 		// includeWhen expressions can ONLY reference the schema (instance spec).
 		// At runtime, includeWhen is evaluated before any resources are created.
 		for _, expression := range node.IncludeWhen {
-			if _, err := inspectExpression(inspectorEnv, expression.Original, []string{SchemaVarName}); err != nil {
+			if _, err := inspectExpressionRestricted(inspector, expression.Original, []string{SchemaVarName}); err != nil {
 				return fmt.Errorf("resource %q includeWhen: %w", node.Meta.ID, err)
 			}
 		}
@@ -1071,7 +1083,7 @@ func validateAndCompileNode(node *Node, inspectorEnv *cel.Env, envPool *krocel.E
 		}
 
 		for _, expression := range node.ReadyWhen {
-			if _, err := inspectExpression(inspectorEnv, expression.Original, []string{allowedVar}); err != nil {
+			if _, err := inspectExpressionRestricted(inspector, expression.Original, []string{allowedVar}); err != nil {
 				return fmt.Errorf("resource %q readyWhen: %w", node.Meta.ID, err)
 			}
 		}
