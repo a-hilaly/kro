@@ -119,24 +119,24 @@ func FromGraph(g *graph.Graph, instance *unstructured.Unstructured) (*Runtime, e
 		node := rt.nodes[id]
 
 		for _, expr := range node.Spec.IncludeWhen {
-			state := getOrCreateExpr(expr, variable.ResourceVariableKindIncludeWhen, nil)
+			state := getOrCreateExpr(expr.Original, variable.ResourceVariableKindIncludeWhen, nil)
 			node.includeWhenExprs = append(node.includeWhenExprs, state)
 		}
 
 		for _, expr := range node.Spec.ReadyWhen {
-			state := getOrCreateExpr(expr, variable.ResourceVariableKindReadyWhen, []string{id})
+			state := getOrCreateExpr(expr.Original, variable.ResourceVariableKindReadyWhen, []string{id})
 			node.readyWhenExprs = append(node.readyWhenExprs, state)
 		}
 
 		for _, dim := range node.Spec.ForEach {
-			state := getOrCreateExpr(dim.Expression, variable.ResourceVariableKindIteration, node.Spec.Meta.Dependencies)
+			state := getOrCreateExpr(dim.Expression.Original, variable.ResourceVariableKindIteration, node.Spec.Meta.Dependencies)
 			node.forEachExprs = append(node.forEachExprs, state)
 		}
 
 		for _, v := range node.Spec.Variables {
 			node.templateVars = append(node.templateVars, v)
 			for _, expr := range v.Expressions {
-				state := getOrCreateExpr(expr, v.Kind, v.Dependencies)
+				state := getOrCreateExpr(expr.Original, v.Kind, expr.References)
 				node.templateExprs = append(node.templateExprs, state)
 			}
 		}
@@ -146,7 +146,7 @@ func FromGraph(g *graph.Graph, instance *unstructured.Unstructured) (*Runtime, e
 	for _, v := range instNode.Spec.Variables {
 		instNode.templateVars = append(instNode.templateVars, v)
 		for _, expr := range v.Expressions {
-			state := getOrCreateExpr(expr, v.Kind, v.Dependencies)
+			state := getOrCreateExpr(expr.Original, v.Kind, expr.References)
 			instNode.templateExprs = append(instNode.templateExprs, state)
 		}
 	}

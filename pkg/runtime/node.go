@@ -341,7 +341,7 @@ func (n *Node) softResolve() ([]*unstructured.Unstructured, error) {
 	for _, v := range n.templateVars {
 		complete := true
 		for _, expr := range v.Expressions {
-			if _, ok := values[expr]; !ok {
+			if _, ok := values[expr.Original]; !ok {
 				complete = false
 				break
 			}
@@ -465,10 +465,10 @@ func (n *Node) exprSetsForVars(
 
 	for _, v := range vars {
 		for _, expr := range v.Expressions {
-			if kind, ok := exprKinds[expr]; ok && kind.IsIteration() {
-				iterExprs[expr] = struct{}{}
+			if kind, ok := exprKinds[expr.Original]; ok && kind.IsIteration() {
+				iterExprs[expr.Original] = struct{}{}
 			} else {
-				baseExprs[expr] = struct{}{}
+				baseExprs[expr.Original] = struct{}{}
 			}
 		}
 	}
@@ -484,7 +484,7 @@ func (n *Node) upsertToTemplate(base *unstructured.Unstructured, values map[stri
 		if len(v.Expressions) == 0 {
 			continue
 		}
-		if val, ok := values[v.Expressions[0]]; ok {
+		if val, ok := values[v.Expressions[0].Original]; ok {
 			_ = res.UpsertValueAtPath(v.Path, val)
 		}
 	}

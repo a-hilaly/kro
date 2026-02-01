@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	krocel "github.com/kubernetes-sigs/kro/pkg/cel"
 	"github.com/kubernetes-sigs/kro/pkg/graph"
 	"github.com/kubernetes-sigs/kro/pkg/graph/variable"
 )
@@ -1098,7 +1099,7 @@ func TestNode_EvaluateForEach(t *testing.T) {
 				n := newTestNode("buckets", graph.NodeTypeCollection).
 					withDep(schema).
 					withForEach("schema.spec.regions").build()
-				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: "schema.spec.regions"}}
+				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: krocel.NewUncompiled("schema.spec.regions")}}
 				return n
 			}(),
 			wantLen: 2,
@@ -1117,8 +1118,8 @@ func TestNode_EvaluateForEach(t *testing.T) {
 					withDep(schema).
 					withForEach("schema.spec.regions", "schema.spec.azs").build()
 				n.Spec.ForEach = []graph.ForEachDimension{
-					{Name: "region", Expression: "schema.spec.regions"},
-					{Name: "az", Expression: "schema.spec.azs"},
+					{Name: "region", Expression: krocel.NewUncompiled("schema.spec.regions")},
+					{Name: "az", Expression: krocel.NewUncompiled("schema.spec.azs")},
 				}
 				return n
 			}(),
@@ -1136,7 +1137,7 @@ func TestNode_EvaluateForEach(t *testing.T) {
 				n := newTestNode("buckets", graph.NodeTypeCollection).
 					withDep(schema).
 					withForEach("schema.spec.regions").build()
-				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: "schema.spec.regions"}}
+				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: krocel.NewUncompiled("schema.spec.regions")}}
 				return n
 			}(),
 			wantLen: 0,
@@ -1187,7 +1188,7 @@ func TestNode_HardResolveCollection(t *testing.T) {
 						"kind":       "ConfigMap",
 						"metadata":   map[string]any{"name": "${region}"},
 					}).build()
-				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: "schema.spec.regions"}}
+				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: krocel.NewUncompiled("schema.spec.regions")}}
 				return n
 			}(),
 			wantLen: 0,
@@ -1213,7 +1214,7 @@ func TestNode_HardResolveCollection(t *testing.T) {
 						"kind":       "ConfigMap",
 						"metadata":   map[string]any{"name": "${schema.spec.name + '-' + region}"},
 					}).build()
-				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: "schema.spec.regions"}}
+				n.Spec.ForEach = []graph.ForEachDimension{{Name: "region", Expression: krocel.NewUncompiled("schema.spec.regions")}}
 				return n
 			}(),
 			wantLen: 2,
@@ -1238,7 +1239,7 @@ func TestNode_HardResolveCollection(t *testing.T) {
 					withTemplateVar("data.result", "item.value / item.divisor").
 					withTemplateExpr("item.value / item.divisor", variable.ResourceVariableKindIteration).
 					build()
-				n.Spec.ForEach = []graph.ForEachDimension{{Name: "item", Expression: "schema.spec.items"}}
+				n.Spec.ForEach = []graph.ForEachDimension{{Name: "item", Expression: krocel.NewUncompiled("schema.spec.items")}}
 				return n
 			}(),
 			wantErr:    true,
@@ -1383,7 +1384,7 @@ func (b *testNodeBuilder) withTemplateVar(path string, exprs ...string) *testNod
 	b.templateVars = append(b.templateVars, &variable.ResourceField{
 		FieldDescriptor: variable.FieldDescriptor{
 			Path:                 path,
-			Expressions:          exprs,
+			Expressions:          krocel.NewUncompiledSlice(exprs...),
 			StandaloneExpression: true,
 		},
 	})
