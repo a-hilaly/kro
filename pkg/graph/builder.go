@@ -1002,6 +1002,35 @@ func validateAndCompileNode(node *Node, envPool *krocel.EnvPool, nodeSchema *spe
 
 	// Validate and compile includeWhen expressions if present
 	if len(node.IncludeWhen) > 0 {
+		// includeWhen expressions can ONLY reference the schema (instance spec).
+		// At runtime, includeWhen is evaluated before any resources are created.
+
+		// First verify expressions don't reference invalid variables
+		for _, expression := range node.IncludeWhen {
+			includeEnv, err := krocel.DefaultEnvironment(
+				krocel.WithResourceIDs([]string{SchemaVarName}),
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create CEL environment for includeWhen: %w", err)
+			}
+			inspector := ast.NewInspectorWithEnv(includeEnv, []string{SchemaVarName})
+			result, err := inspector.Inspect(expression.Original)
+			if err != nil {
+				return fmt.Errorf("failed to inspect includeWhen expression %q: %w", expression.Original, err)
+			}
+			if len(result.UnknownResources) > 0 {
+				var names []string
+				for _, r := range result.UnknownResources {
+					names = append(names, r.ID)
+				}
+				return fmt.Errorf(
+					"resource %q includeWhen expression %q cannot reference %v - only '%s' is available (use readyWhen for resource-based conditions)",
+					node.Meta.ID, expression.Original, names, SchemaVarName,
+				)
+			}
+		}
+
+		// Get typed environment for includeWhen compilation
 		schemaEnv, err := envPool.GetOrCreate([]string{SchemaVarName}, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get schema CEL environment: %w", err)
