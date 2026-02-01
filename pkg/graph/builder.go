@@ -144,31 +144,43 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	}
 
 	// At this stage we have a superficial understanding of the resources that are
-	// part of the resource graph definition. We have the OpenAPI schema for each resource,
-	// and we have extracted the CEL expressions from the templates.
+	// part of the resource graph definition. We have the OpenAPI schema for each resource, and
+	// we have extracted the CEL expressions from the schema.
 	//
-	// Next, we need to understand the instance definition. The instance is the resource
-	// users will create in their cluster to request the creation of the resources
-	// defined in the resource graph definition.
+	// Before we get into the dependency graph computation, we need to understand
+	// the shape of the instance resource (Mainly trying to understand the instance
+	// resource schema) to help validating the CEL expressions that are pointing to
+	// the instance resource e.g ${schema.spec.something.something}.
 	//
-	// The instance resource is a Kubernetes CRD. Unlike typical CRDs, users define the
-	// schema using the "SimpleSchema" format - a simplified version of OpenAPI schema
-	// that only supports a subset of features.
+	// You might wonder why are we building the resources before the instance resource?
+	// That's because the instance status schema is inferred from the CEL expressions
+	// in the status field of the instance resource. Those CEL expressions refer to
+	// the resources defined in the resource graph definition. Hence, we need to build the resources
+	// first, to be able to generate a proper schema for the instance status.
+
 	//
-	// SimpleSchema is useful for defining the Spec of a CRD. For the Status, we use
-	// CEL expressions - kro inspects them to infer the types of status fields and
-	// generate the OpenAPI schema. The CEL expressions are also used at runtime to
-	// patch the status field of the instance.
+
+	// Next, we need to understand the instance definition. The instance is
+	// the resource users will create in their cluster, to request the creation of
+	// the resources defined in the resource graph definition.
 	//
-	// Why build resources before instance status? Because instance status is inferred
-	// from CEL expressions that reference resources (e.g., ${deployment.status.replicas}).
-	// We need resource schemas first to type-check those expressions.
+	// The instance resource is a Kubernetes resource, differently from typical
+	// CRDs, users define the schema of the instance resource using the "SimpleSchema"
+	// format. This format is a simplified version of the OpenAPI schema, that only
+	// supports a subset of the features.
 	//
-	// The dependency order is:
-	//   1. Instance spec schema: from SimpleSchema (no CEL, no dependencies)
-	//   2. Resource schemas: from cluster OpenAPI (no dependencies)
-	//   3. Resource CEL validation: needs instance spec + resource schemas
-	//   4. Instance status schema: needs resource schemas for type inference
+	// SimpleSchema is a new standard we created to simplify CRD declarations, it is
+	// very useful when we need to define the Spec of a CRD, when it comes to defining
+	// the status of a CRD, we use CEL expressions. `kro` inspects the CEL expressions
+	// to infer the types of the status fields, and generate the OpenAPI schema for the
+	// status field. The CEL expressions are also used to patch the status field of the
+	// instance.
+	//
+	// We need to:
+	// 1. Parse the instance spec fields adhering to the SimpleSchema format.
+	// 2. Extract CEL expressions from the status
+	// 3. Validate them against the resources defined in the resource graph definition.
+	// 4. Infer the status schema based on the CEL expressions.
 
 	// Build instance spec schema from SimpleSchema.
 	// This is independent of resources - just YAML parsing.
@@ -196,11 +208,11 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	// This allows expressions like ${schema.spec.replicas} and ${deployment.status.replicas}.
 	// Note: only spec and metadata are included - status references are not allowed in RGDs.
 	celSchemas := collectNodeSchemas(nodes, schemas)
-	instanceSchemaForCEL, err := getSchemaWithoutStatus(instanceCRD)
+	schemaWithoutStatus, err := getSchemaWithoutStatus(instanceCRD)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get instance schema for CEL: %w", err)
+		return nil, fmt.Errorf("failed to get schema without status: %w", err)
 	}
-	celSchemas[SchemaVarName] = instanceSchemaForCEL
+	celSchemas[SchemaVarName] = schemaWithoutStatus
 
 	// Create a single EnvPool for all CEL operations.
 	// EnvPool creates minimal environments declaring only the referenced schemas,
@@ -223,6 +235,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	if err != nil {
 		return nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
+	// Ensure the graph is acyclic and get the topological order of resources.
 	topologicalOrder, err := dag.TopologicalSort()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get topological order: %w", err)
@@ -266,14 +279,15 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 		return nil, fmt.Errorf("failed to create instance node: %w", err)
 	}
 
-	return &Graph{
+	resourceGraphDefinition := &Graph{
 		DAG:              dag,
 		Instance:         instance,
 		Nodes:            nodes,
 		Resources:        nodes,
 		TopologicalOrder: topologicalOrder,
 		CRD:              instanceCRD,
-	}, nil
+	}
+	return resourceGraphDefinition, nil
 }
 
 // buildExternalRefResource builds an empty resource with metadata from the given externalRef definition.
@@ -1300,23 +1314,6 @@ func validateAndCompileForEach(envPool *krocel.EnvPool, node *Node) (map[string]
 	return iteratorTypes, nil
 }
 
-// collectNodeSchemas builds a map of node IDs to their OpenAPI schemas.
-// Collections (those with forEach) are wrapped as list types
-// so other nodes can reference them as arrays and use CEL list functions.
-func collectNodeSchemas(nodes map[string]*Node, nodeSchemas map[string]*spec.Schema) map[string]*spec.Schema {
-	result := make(map[string]*spec.Schema)
-	for id, node := range nodes {
-		if sch, ok := nodeSchemas[id]; ok {
-			if node.Meta.Type == NodeTypeCollection {
-				result[id] = schema.WrapSchemaAsList(sch)
-			} else {
-				result[id] = sch
-			}
-		}
-	}
-	return result
-}
-
 // getSchemaWithoutStatus extracts a spec.Schema from a CRD for CEL validation.
 // It includes spec and metadata but excludes status, since status references
 // are not allowed in RGD expressions.
@@ -1344,4 +1341,21 @@ func getSchemaWithoutStatus(crd *extv1.CustomResourceDefinition) (*spec.Schema, 
 	specSchema.Properties["metadata"] = schema.ObjectMetaSchema
 
 	return specSchema, nil
+}
+
+// collectNodeSchemas builds a map of node IDs to their OpenAPI schemas.
+// Collections (those with forEach) are wrapped as list types
+// so other nodes can reference them as arrays and use CEL list functions.
+func collectNodeSchemas(nodes map[string]*Node, nodeSchemas map[string]*spec.Schema) map[string]*spec.Schema {
+	result := make(map[string]*spec.Schema)
+	for id, node := range nodes {
+		if sch, ok := nodeSchemas[id]; ok {
+			if node.Meta.Type == NodeTypeCollection {
+				result[id] = schema.WrapSchemaAsList(sch)
+			} else {
+				result[id] = sch
+			}
+		}
+	}
+	return result
 }
