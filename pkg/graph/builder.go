@@ -102,8 +102,14 @@ type Builder struct {
 }
 
 type declTypeBuildCache struct {
+	raw      map[declTypeSchemaKey]*apiservercel.DeclType
 	named    map[string]*apiservercel.DeclType
 	celTypes map[string]*cel.Type
+}
+
+type declTypeSchemaKey struct {
+	schema         *spec.Schema
+	isResourceRoot bool
 }
 
 type typedSchemaInput struct {
@@ -111,11 +117,70 @@ type typedSchemaInput struct {
 	rootTypeName string
 }
 
+type compiledExpressionKey struct {
+	envSignature string
+	expression   string
+}
+
+type compiledExpression struct {
+	checkedAST *cel.Ast
+	program    cel.Program
+}
+
+type compiledExpressionBuildCache struct {
+	entries map[compiledExpressionKey]compiledExpression
+}
+
+func newCompiledExpressionBuildCache() *compiledExpressionBuildCache {
+	return &compiledExpressionBuildCache{
+		entries: make(map[compiledExpressionKey]compiledExpression),
+	}
+}
+
+func (c *compiledExpressionBuildCache) get(envSignature, expression string) (*cel.Ast, cel.Program, bool) {
+	if c == nil {
+		return nil, nil, false
+	}
+
+	key := compiledExpressionKey{envSignature: envSignature, expression: expression}
+	entry, ok := c.entries[key]
+	if !ok {
+		return nil, nil, false
+	}
+
+	return entry.checkedAST, entry.program, true
+}
+
+func (c *compiledExpressionBuildCache) put(envSignature, expression string, checkedAST *cel.Ast, program cel.Program) {
+	if c == nil {
+		return
+	}
+
+	key := compiledExpressionKey{envSignature: envSignature, expression: expression}
+	c.entries[key] = compiledExpression{checkedAST: checkedAST, program: program}
+}
+
 func newDeclTypeBuildCache() *declTypeBuildCache {
 	return &declTypeBuildCache{
+		raw:      make(map[declTypeSchemaKey]*apiservercel.DeclType),
 		named:    make(map[string]*apiservercel.DeclType),
 		celTypes: make(map[string]*cel.Type),
 	}
+}
+
+func (c *declTypeBuildCache) baseDeclType(schema *spec.Schema, isResourceRoot bool) *apiservercel.DeclType {
+	if schema == nil {
+		return nil
+	}
+
+	key := declTypeSchemaKey{schema: schema, isResourceRoot: isResourceRoot}
+	if declType, ok := c.raw[key]; ok {
+		return declType
+	}
+
+	declType := schemaDeclTypeWithMetadata(&openapi.Schema{Schema: schema}, isResourceRoot)
+	c.raw[key] = declType
+	return declType
 }
 
 func (c *declTypeBuildCache) namedDeclType(schema *spec.Schema, typeName string) *apiservercel.DeclType {
@@ -126,7 +191,7 @@ func (c *declTypeBuildCache) namedDeclType(schema *spec.Schema, typeName string)
 		return declType
 	}
 
-	declType := schemaDeclTypeWithMetadata(&openapi.Schema{Schema: schema}, false)
+	declType := c.baseDeclType(schema, false)
 	if declType == nil {
 		c.named[typeName] = nil
 		return nil
@@ -192,6 +257,53 @@ func fallbackRootTypeName(name string) string {
 	return krocel.TypeNamePrefix + sanitizeTypeNameSegment(name, "resource")
 }
 
+func typedEnvironmentSignature(schemas map[string]typedSchemaInput) string {
+	if len(schemas) == 0 {
+		return "typed:"
+	}
+
+	names := maps.Keys(schemas)
+	slices.Sort(names)
+
+	var builder strings.Builder
+	builder.WriteString("typed:")
+	for _, name := range names {
+		input := schemas[name]
+		builder.WriteString(name)
+		builder.WriteByte('=')
+		builder.WriteString(input.rootTypeName)
+		builder.WriteByte(';')
+	}
+
+	return builder.String()
+}
+
+func compileEnvironmentSignature(base string, iteratorTypes map[string]*cel.Type) string {
+	if len(iteratorTypes) == 0 {
+		return base
+	}
+
+	names := maps.Keys(iteratorTypes)
+	slices.Sort(names)
+
+	var builder strings.Builder
+	builder.Grow(len(base) + 32*len(names))
+	builder.WriteString(base)
+	builder.WriteString("|iters:")
+	for _, name := range names {
+		builder.WriteString(name)
+		builder.WriteByte('=')
+		if iteratorTypes[name] != nil {
+			builder.WriteString(iteratorTypes[name].String())
+		} else {
+			builder.WriteString(cel.DynType.String())
+		}
+		builder.WriteByte(';')
+	}
+
+	return builder.String()
+}
+
 func nodeRootTypeName(node *Node) string {
 	if node == nil {
 		return fallbackRootTypeName("resource")
@@ -215,13 +327,14 @@ func nodeCollectionRootTypeName(node *Node) string {
 func buildTypedEnvironmentWithCache(
 	schemas map[string]typedSchemaInput,
 	declTypeCache *declTypeBuildCache,
-) (*cel.Env, *krocel.DeclTypeProvider, error) {
+) (*cel.Env, *krocel.DeclTypeProvider, string, error) {
 	if declTypeCache == nil {
 		declTypeCache = newDeclTypeBuildCache()
 	}
 
 	declarations := krocel.BaseDeclarations()
 	declTypesByName := make(map[string]*apiservercel.DeclType, len(schemas))
+	signature := typedEnvironmentSignature(schemas)
 
 	for name, input := range schemas {
 		declType := declTypeCache.namedDeclType(input.schema, input.rootTypeName)
@@ -235,7 +348,7 @@ func buildTypedEnvironmentWithCache(
 
 	if len(declTypesByName) == 0 {
 		env, err := cel.NewEnv(declarations...)
-		return env, nil, err
+		return env, nil, signature, err
 	}
 
 	declTypes := make([]*apiservercel.DeclType, 0, len(declTypesByName))
@@ -249,16 +362,16 @@ func buildTypedEnvironmentWithCache(
 	registry := celtypes.NewEmptyRegistry()
 	wrappedProvider, err := baseProvider.WithTypeProvider(registry)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 
 	declarations = append(declarations, cel.CustomTypeProvider(wrappedProvider))
 	env, err := cel.NewEnv(declarations...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 
-	return env, baseProvider, nil
+	return env, baseProvider, signature, nil
 }
 
 // RGDConfig holds RGD runtime configuration parameters.
@@ -423,10 +536,11 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	// Following Kubernetes best practice: create one env, extend once at init,
 	// compile all expressions against it. AST inspection handles scope validation.
 	declTypeCache := newDeclTypeBuildCache()
-	typedEnv, typeProvider, err := buildTypedEnvironmentWithCache(celSchemas, declTypeCache)
+	typedEnv, typeProvider, typedEnvSignature, err := buildTypedEnvironmentWithCache(celSchemas, declTypeCache)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create typed CEL environment: %w", err)
 	}
+	compileCache := newCompiledExpressionBuildCache()
 
 	// Validate and compile all resource CEL expressions.
 	for id, node := range nodes {
@@ -434,10 +548,12 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 			node,
 			inspector,
 			typedEnv,
+			typedEnvSignature,
 			schemas[id],
 			nodeRootTypeName(node),
 			typeProvider,
 			declTypeCache,
+			compileCache,
 		); err != nil {
 			return nil, fmt.Errorf("failed to validate resource %q: %w", id, err)
 		}
@@ -451,7 +567,9 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 		nodeNames,
 		inspector,
 		typedEnv,
+		typedEnvSignature,
 		typeProvider,
+		compileCache,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build instance status schema: %w", err)
@@ -906,7 +1024,9 @@ func buildStatusSchema(
 	nodeNames []string,
 	inspector *ast.Inspector,
 	env *cel.Env,
+	envSignature string,
 	typeProvider *krocel.DeclTypeProvider,
+	compileCache *compiledExpressionBuildCache,
 ) (
 	*extv1.JSONSchemaProps,
 	[]variable.FieldDescriptor,
@@ -956,7 +1076,7 @@ func buildStatusSchema(
 			// Single standalone expression - use its output type
 			expression := fieldDescriptor.Expressions[0]
 
-			checkedAST, err := parseCheckAndCompile(env, expression)
+			checkedAST, err := parseCheckAndCompile(env, envSignature, expression, compileCache)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to type-check status expression %q at path %q: %w", expression, fieldDescriptor.Path, err)
 			}
@@ -965,7 +1085,7 @@ func buildStatusSchema(
 		} else {
 			// String interpolation - validate all expressions and result is string
 			for _, expression := range fieldDescriptor.Expressions {
-				checkedAST, err := parseCheckAndCompile(env, expression)
+				checkedAST, err := parseCheckAndCompile(env, envSignature, expression, compileCache)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to type-check status expression %q at path %q: %w", expression, fieldDescriptor.Path, err)
 				}
@@ -1227,10 +1347,12 @@ func validateAndCompileNode(
 	node *Node,
 	inspector *ast.Inspector,
 	env *cel.Env,
+	envSignature string,
 	nodeSchema *spec.Schema,
 	nodeTypeName string,
 	typeProvider *krocel.DeclTypeProvider,
 	declTypeCache *declTypeBuildCache,
+	compileCache *compiledExpressionBuildCache,
 ) error {
 	// Track iterator types for extending template environment
 	var iteratorTypes map[string]*cel.Type
@@ -1238,7 +1360,7 @@ func validateAndCompileNode(
 	// If this node has forEach iterators, validate and compile them
 	if len(node.ForEach) > 0 {
 		var err error
-		iteratorTypes, err = validateAndCompileForEach(env, node)
+		iteratorTypes, err = validateAndCompileForEach(env, envSignature, node, compileCache)
 		if err != nil {
 			return err
 		}
@@ -1251,8 +1373,10 @@ func validateAndCompileNode(
 		nodeSchema,
 		nodeTypeName,
 		typeProvider,
+		envSignature,
 		iteratorTypes,
 		declTypeCache,
+		compileCache,
 	); err != nil {
 		return err
 	}
@@ -1268,7 +1392,7 @@ func validateAndCompileNode(
 		}
 
 		// Compile includeWhen using the shared typed environment
-		if err := validateAndCompileIncludeWhen(env, node); err != nil {
+		if err := validateAndCompileIncludeWhen(env, envSignature, node, compileCache); err != nil {
 			return err
 		}
 	}
@@ -1291,9 +1415,10 @@ func validateAndCompileNode(
 		// For readyWhen on collections, we need "each" variable which isn't in the shared env.
 		// Create a typed env with just the node schema under the appropriate variable name.
 		readyEnv := env
+		readyEnvSignature := envSignature
 		if node.Meta.Type == NodeTypeCollection {
 			var err error
-			readyEnv, _, err = buildTypedEnvironmentWithCache(
+			readyEnv, _, readyEnvSignature, err = buildTypedEnvironmentWithCache(
 				map[string]typedSchemaInput{
 					EachVarName: {
 						schema:       nodeSchema,
@@ -1307,7 +1432,7 @@ func validateAndCompileNode(
 			}
 		}
 
-		if err := validateAndCompileReadyWhen(readyEnv, node); err != nil {
+		if err := validateAndCompileReadyWhen(readyEnv, readyEnvSignature, node, compileCache); err != nil {
 			return err
 		}
 	}
@@ -1323,11 +1448,14 @@ func validateAndCompileTemplates(
 	nodeSchema *spec.Schema,
 	nodeTypeName string,
 	typeProvider *krocel.DeclTypeProvider,
+	envSignature string,
 	iteratorTypes map[string]*cel.Type,
 	declTypeCache *declTypeBuildCache,
+	compileCache *compiledExpressionBuildCache,
 ) error {
 	// If we have iterator types (from forEach), extend the environment with those declarations
 	compileEnv := env
+	compileEnvSignature := envSignature
 	if len(iteratorTypes) > 0 {
 		opts := make([]cel.EnvOption, 0, len(iteratorTypes))
 		for name, typ := range iteratorTypes {
@@ -1338,6 +1466,7 @@ func validateAndCompileTemplates(
 		if err != nil {
 			return fmt.Errorf("failed to extend CEL environment with iterator types: %w", err)
 		}
+		compileEnvSignature = compileEnvironmentSignature(envSignature, iteratorTypes)
 	}
 
 	for _, templateVariable := range node.Variables {
@@ -1352,7 +1481,7 @@ func validateAndCompileTemplates(
 
 		for _, expression := range templateVariable.Expressions {
 			// Parse, type-check, and compile
-			checkedAST, err := parseCheckAndCompile(compileEnv, expression)
+			checkedAST, err := parseCheckAndCompile(compileEnv, compileEnvSignature, expression, compileCache)
 			if err != nil {
 				return fmt.Errorf("failed to compile template expression %q at path %q: %w", expression.Original, templateVariable.Path, err)
 			}
@@ -1394,10 +1523,24 @@ func validateExpressionType(outputType, expectedType *cel.Type, expression, reso
 	)
 }
 
+var buildCELProgram = func(env *cel.Env, checkedAST *cel.Ast) (cel.Program, error) {
+	return env.Program(checkedAST)
+}
+
 // parseCheckAndCompile parses, type-checks, and compiles a CEL expression.
 // On success, it sets expr.Program and returns the checked AST.
 // Callers should wrap errors with appropriate context.
-func parseCheckAndCompile(env *cel.Env, expr *krocel.Expression) (*cel.Ast, error) {
+func parseCheckAndCompile(
+	env *cel.Env,
+	envSignature string,
+	expr *krocel.Expression,
+	compileCache *compiledExpressionBuildCache,
+) (*cel.Ast, error) {
+	if checkedAST, program, ok := compileCache.get(envSignature, expr.Original); ok {
+		expr.Program = program
+		return checkedAST, nil
+	}
+
 	parsedAST, issues := env.Parse(expr.Original)
 	if issues != nil && issues.Err() != nil {
 		return nil, issues.Err()
@@ -1409,19 +1552,26 @@ func parseCheckAndCompile(env *cel.Env, expr *krocel.Expression) (*cel.Ast, erro
 	}
 
 	// Compile to a reusable Program
-	program, err := env.Program(checkedAST)
+	program, err := buildCELProgram(env, checkedAST)
 	if err != nil {
 		return nil, fmt.Errorf("compile: %w", err)
 	}
 	expr.Program = program
+	compileCache.put(envSignature, expr.Original, checkedAST, program)
 
 	return checkedAST, nil
 }
 
 // validateConditionExpression validates a single condition expression (includeWhen or readyWhen).
 // It parses, type-checks, and verifies the expression returns bool or optional_type(bool).
-func validateConditionExpression(env *cel.Env, expr *krocel.Expression, conditionType, resourceID string) error {
-	checkedAST, err := parseCheckAndCompile(env, expr)
+func validateConditionExpression(
+	env *cel.Env,
+	envSignature string,
+	expr *krocel.Expression,
+	conditionType, resourceID string,
+	compileCache *compiledExpressionBuildCache,
+) error {
+	checkedAST, err := parseCheckAndCompile(env, envSignature, expr, compileCache)
 	if err != nil {
 		return fmt.Errorf("failed to type-check %s expression %q in resource %q: %w", conditionType, expr.Original, resourceID, err)
 	}
@@ -1440,9 +1590,14 @@ func validateConditionExpression(env *cel.Env, expr *krocel.Expression, conditio
 
 // validateAndCompileIncludeWhen validates and compiles includeWhen expressions.
 // These expressions must only reference the "schema" variable and return bool.
-func validateAndCompileIncludeWhen(env *cel.Env, node *Node) error {
+func validateAndCompileIncludeWhen(
+	env *cel.Env,
+	envSignature string,
+	node *Node,
+	compileCache *compiledExpressionBuildCache,
+) error {
 	for _, expression := range node.IncludeWhen {
-		if err := validateConditionExpression(env, expression, "includeWhen", node.Meta.ID); err != nil {
+		if err := validateConditionExpression(env, envSignature, expression, "includeWhen", node.Meta.ID, compileCache); err != nil {
 			return err
 		}
 	}
@@ -1450,9 +1605,14 @@ func validateAndCompileIncludeWhen(env *cel.Env, node *Node) error {
 }
 
 // validateAndCompileReadyWhen validates and compiles readyWhen expressions for a single node.
-func validateAndCompileReadyWhen(env *cel.Env, node *Node) error {
+func validateAndCompileReadyWhen(
+	env *cel.Env,
+	envSignature string,
+	node *Node,
+	compileCache *compiledExpressionBuildCache,
+) error {
 	for _, expression := range node.ReadyWhen {
-		if err := validateConditionExpression(env, expression, "readyWhen", node.Meta.ID); err != nil {
+		if err := validateConditionExpression(env, envSignature, expression, "readyWhen", node.Meta.ID, compileCache); err != nil {
 			return err
 		}
 	}
@@ -1468,7 +1628,12 @@ func validateAndCompileReadyWhen(env *cel.Env, node *Node) error {
 //
 // The inferred element type of each list is used to declare the iterator variable
 // in the CEL environment for validating template expressions.
-func validateAndCompileForEach(env *cel.Env, node *Node) (map[string]*cel.Type, error) {
+func validateAndCompileForEach(
+	env *cel.Env,
+	envSignature string,
+	node *Node,
+	compileCache *compiledExpressionBuildCache,
+) (map[string]*cel.Type, error) {
 	if len(node.ForEach) == 0 {
 		return nil, nil
 	}
@@ -1477,7 +1642,7 @@ func validateAndCompileForEach(env *cel.Env, node *Node) (map[string]*cel.Type, 
 
 	for _, iter := range node.ForEach {
 		// Parse, type-check, and compile the forEach expression
-		checkedAST, err := parseCheckAndCompile(env, iter.Expression)
+		checkedAST, err := parseCheckAndCompile(env, envSignature, iter.Expression, compileCache)
 		if err != nil {
 			return nil, fmt.Errorf("node %q: forEach iterator %q: %w", node.Meta.ID, iter.Name, err)
 		}

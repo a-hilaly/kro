@@ -34,6 +34,42 @@ const XKubernetesPreserveUnknownFields = "x-kubernetes-preserve-unknown-fields"
 
 const maxRequestSizeBytes = apiservercel.DefaultMaxRequestSizeBytes
 
+func additionalPropertiesSchema(s common.Schema) common.Schema {
+	if openapiSchema, ok := s.(*celopenapi.Schema); ok {
+		if openapiSchema.Schema == nil || openapiSchema.Schema.AdditionalProperties == nil || openapiSchema.Schema.AdditionalProperties.Schema == nil {
+			return nil
+		}
+		return &celopenapi.Schema{Schema: openapiSchema.Schema.AdditionalProperties.Schema}
+	}
+
+	additionalProperties := s.AdditionalProperties()
+	if additionalProperties == nil {
+		return nil
+	}
+	return additionalProperties.Schema()
+}
+
+func schemaPropertyCapacity(s common.Schema) int {
+	if openapiSchema, ok := s.(*celopenapi.Schema); ok && openapiSchema.Schema != nil {
+		return len(openapiSchema.Schema.Properties)
+	}
+	return 0
+}
+
+func visitSchemaProperties(s common.Schema, visit func(name string, prop common.Schema)) {
+	if openapiSchema, ok := s.(*celopenapi.Schema); ok && openapiSchema.Schema != nil {
+		for name, prop := range openapiSchema.Schema.Properties {
+			prop := prop
+			visit(name, &celopenapi.Schema{Schema: &prop})
+		}
+		return
+	}
+
+	for name, prop := range s.Properties() {
+		visit(name, prop)
+	}
+}
+
 // SchemaDeclTypeWithMetadata converts the structural schema to a CEL declaration, or returns nil if the
 // structural schema should not be exposed in CEL expressions.
 // Set isResourceRoot to true for the root of a custom resource or embedded resource.
@@ -103,8 +139,7 @@ func SchemaDeclTypeWithMetadata(s common.Schema, isResourceRoot bool) *apiserver
 		}
 		return nil
 	case "object":
-		if s.AdditionalProperties() != nil && s.AdditionalProperties().Schema() != nil {
-			additional := s.AdditionalProperties().Schema()
+		if additional := additionalPropertiesSchema(s); additional != nil {
 			var propsType *apiservercel.DeclType
 			// TODO(jakobmoellerdev): revisit this once upstream is fixed
 			// upstream bug in apiserver where SchemaOrBool returns a non nil pointer with nil content
@@ -136,7 +171,7 @@ func SchemaDeclTypeWithMetadata(s common.Schema, isResourceRoot bool) *apiserver
 			}
 			return mt
 		}
-		fields := make(map[string]*apiservercel.DeclField, len(s.Properties()))
+		fields := make(map[string]*apiservercel.DeclField, schemaPropertyCapacity(s))
 
 		required := map[string]bool{}
 		if s.Required() != nil {
@@ -146,7 +181,7 @@ func SchemaDeclTypeWithMetadata(s common.Schema, isResourceRoot bool) *apiserver
 		}
 		// an object will always be serialized at least as {}, so account for that
 		minSerializedSize := int64(2)
-		for name, prop := range s.Properties() {
+		visitSchemaProperties(s, func(name string, prop common.Schema) {
 			var enumValues []interface{}
 			if prop.Enum() != nil {
 				enumValues = append(enumValues, prop.Enum()...)
@@ -163,7 +198,7 @@ func SchemaDeclTypeWithMetadata(s common.Schema, isResourceRoot bool) *apiserver
 					minSerializedSize += int64(len(name)) + fieldType.MinSerializedSize + 4
 				}
 			}
-		}
+		})
 		objType := apiservercel.NewObjectType("object", fields)
 		objType.MinSerializedSize = minSerializedSize
 		if s.IsXPreserveUnknownFields() {

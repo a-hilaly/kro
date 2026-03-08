@@ -17,6 +17,7 @@ package cel
 import (
 	"fmt"
 	"maps"
+	"sync"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
@@ -110,15 +111,27 @@ func BaseDeclarations() []cel.EnvOption {
 	}
 }
 
+var (
+	baseEnvironmentOnce sync.Once
+	baseEnvironmentEnv  *cel.Env
+	baseEnvironmentErr  error
+)
+
+func defaultBaseEnvironment() (*cel.Env, error) {
+	baseEnvironmentOnce.Do(func() {
+		baseEnvironmentEnv, baseEnvironmentErr = cel.NewEnv(BaseDeclarations()...)
+	})
+	return baseEnvironmentEnv, baseEnvironmentErr
+}
+
 // DefaultEnvironment returns the default CEL environment.
 func DefaultEnvironment(options ...EnvOption) (*cel.Env, error) {
-	declarations := BaseDeclarations()
-
 	opts := &envOptions{}
 	for _, opt := range options {
 		opt(opts)
 	}
 
+	declarations := make([]cel.EnvOption, 0, len(opts.customDeclarations)+len(opts.resourceIDs)+len(opts.typedResources)+1)
 	declarations = append(declarations, opts.customDeclarations...)
 
 	if len(opts.typedResources) > 0 {
@@ -164,7 +177,14 @@ func DefaultEnvironment(options ...EnvOption) (*cel.Env, error) {
 		declarations = append(declarations, cel.Variable(name, cel.AnyType))
 	}
 
-	return cel.NewEnv(declarations...)
+	baseEnv, err := defaultBaseEnvironment()
+	if err != nil {
+		return nil, err
+	}
+	if len(declarations) == 0 {
+		return baseEnv, nil
+	}
+	return baseEnv.Extend(declarations...)
 }
 
 // TypedEnvironment creates a CEL environment with type checking enabled.
