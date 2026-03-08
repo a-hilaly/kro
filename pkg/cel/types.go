@@ -45,19 +45,19 @@ func buildDeclTypes(path string, t *apiservercel.DeclType, types map[string]*api
 		// to function properly.
 		types[t.TypeName()] = t
 		for name, field := range t.Fields {
-			fieldPath := fmt.Sprintf("%s.%s", path, name)
+			fieldPath := path + "." + name
 			buildDeclTypes(fieldPath, field.Type, types)
 		}
 	}
 	// Map element properties to type names if needed.
 	if t.IsMap() {
-		mapElemPath := fmt.Sprintf("%s.@elem", path)
+		mapElemPath := path + ".@elem"
 		buildDeclTypes(mapElemPath, t.ElemType, types)
 		types[path] = t
 	}
 	// List element properties.
 	if t.IsList() {
-		listIdxPath := fmt.Sprintf("%s.@idx", path)
+		listIdxPath := path + ".@idx"
 		buildDeclTypes(listIdxPath, t.ElemType, types)
 		types[path] = t
 	}

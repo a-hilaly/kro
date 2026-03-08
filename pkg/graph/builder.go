@@ -21,12 +21,15 @@ import (
 	"strings"
 
 	"github.com/google/cel-go/cel"
+	celtypes "github.com/google/cel-go/common/types"
 	"golang.org/x/exp/maps"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	apiservercel "k8s.io/apiserver/pkg/cel"
 	"k8s.io/apiserver/pkg/cel/openapi"
 	"k8s.io/apiserver/pkg/cel/openapi/resolver"
 	"k8s.io/client-go/rest"
@@ -47,6 +50,8 @@ import (
 	"github.com/kubernetes-sigs/kro/pkg/metadata"
 	"github.com/kubernetes-sigs/kro/pkg/simpleschema"
 )
+
+var schemaDeclTypeWithMetadata = krocel.SchemaDeclTypeWithMetadata
 
 // NewBuilder creates a new GraphBuilder instance.
 func NewBuilder(clientConfig *rest.Config, httpClient *http.Client) (*Builder, error) {
@@ -94,6 +99,166 @@ type Builder struct {
 	// schemaResolver is used to resolve the OpenAPI schema for the resources.
 	schemaResolver resolver.SchemaResolver
 	restMapper     meta.RESTMapper
+}
+
+type declTypeBuildCache struct {
+	named    map[string]*apiservercel.DeclType
+	celTypes map[string]*cel.Type
+}
+
+type typedSchemaInput struct {
+	schema       *spec.Schema
+	rootTypeName string
+}
+
+func newDeclTypeBuildCache() *declTypeBuildCache {
+	return &declTypeBuildCache{
+		named:    make(map[string]*apiservercel.DeclType),
+		celTypes: make(map[string]*cel.Type),
+	}
+}
+
+func (c *declTypeBuildCache) namedDeclType(schema *spec.Schema, typeName string) *apiservercel.DeclType {
+	if schema == nil {
+		return nil
+	}
+	if declType, ok := c.named[typeName]; ok {
+		return declType
+	}
+
+	declType := schemaDeclTypeWithMetadata(&openapi.Schema{Schema: schema}, false)
+	if declType == nil {
+		c.named[typeName] = nil
+		return nil
+	}
+
+	declType = declType.MaybeAssignTypeName(typeName)
+	c.named[typeName] = declType
+	return declType
+}
+
+func (c *declTypeBuildCache) celType(schema *spec.Schema, typeName string) *cel.Type {
+	if schema == nil {
+		return cel.DynType
+	}
+
+	if celType, ok := c.celTypes[typeName]; ok {
+		return celType
+	}
+
+	declType := c.namedDeclType(schema, typeName)
+	if declType == nil {
+		c.celTypes[typeName] = cel.DynType
+		return cel.DynType
+	}
+
+	celType := declType.CelType()
+	c.celTypes[typeName] = celType
+	return celType
+}
+
+func sanitizeTypeNameSegment(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+
+	var builder strings.Builder
+	for _, r := range strings.ToLower(value) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			builder.WriteRune(r)
+			continue
+		}
+		builder.WriteByte('_')
+	}
+
+	if builder.Len() == 0 {
+		return fallback
+	}
+	return builder.String()
+}
+
+func rootTypeNameForGVR(gvr k8sschema.GroupVersionResource) string {
+	group := sanitizeTypeNameSegment(gvr.Group, "core")
+	version := sanitizeTypeNameSegment(gvr.Version, "unknown")
+	resource := sanitizeTypeNameSegment(gvr.Resource, "resource")
+	return krocel.TypeNamePrefix + "gvr_" + group + "_" + version + "_" + resource
+}
+
+func listRootTypeNameForGVR(gvr k8sschema.GroupVersionResource) string {
+	return rootTypeNameForGVR(gvr) + "_list"
+}
+
+func fallbackRootTypeName(name string) string {
+	return krocel.TypeNamePrefix + sanitizeTypeNameSegment(name, "resource")
+}
+
+func nodeRootTypeName(node *Node) string {
+	if node == nil {
+		return fallbackRootTypeName("resource")
+	}
+	if node.Meta.GVR.Group != "" || node.Meta.GVR.Version != "" || node.Meta.GVR.Resource != "" {
+		return rootTypeNameForGVR(node.Meta.GVR)
+	}
+	return fallbackRootTypeName(node.Meta.ID)
+}
+
+func nodeCollectionRootTypeName(node *Node) string {
+	if node == nil {
+		return fallbackRootTypeName("resource_list")
+	}
+	if node.Meta.GVR.Group != "" || node.Meta.GVR.Version != "" || node.Meta.GVR.Resource != "" {
+		return listRootTypeNameForGVR(node.Meta.GVR)
+	}
+	return fallbackRootTypeName(node.Meta.ID + "_list")
+}
+
+func buildTypedEnvironmentWithCache(
+	schemas map[string]typedSchemaInput,
+	declTypeCache *declTypeBuildCache,
+) (*cel.Env, *krocel.DeclTypeProvider, error) {
+	if declTypeCache == nil {
+		declTypeCache = newDeclTypeBuildCache()
+	}
+
+	declarations := krocel.BaseDeclarations()
+	declTypesByName := make(map[string]*apiservercel.DeclType, len(schemas))
+
+	for name, input := range schemas {
+		declType := declTypeCache.namedDeclType(input.schema, input.rootTypeName)
+		if declType == nil {
+			continue
+		}
+
+		declTypesByName[input.rootTypeName] = declType
+		declarations = append(declarations, cel.Variable(name, declType.CelType()))
+	}
+
+	if len(declTypesByName) == 0 {
+		env, err := cel.NewEnv(declarations...)
+		return env, nil, err
+	}
+
+	declTypes := make([]*apiservercel.DeclType, 0, len(declTypesByName))
+	for _, declType := range declTypesByName {
+		declTypes = append(declTypes, declType)
+	}
+
+	baseProvider := krocel.NewDeclTypeProvider(declTypes...)
+	baseProvider.SetRecognizeKeywordAsFieldName(true)
+
+	registry := celtypes.NewEmptyRegistry()
+	wrappedProvider, err := baseProvider.WithTypeProvider(registry)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	declarations = append(declarations, cel.CustomTypeProvider(wrappedProvider))
+	env, err := cel.NewEnv(declarations...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return env, baseProvider, nil
 }
 
 // RGDConfig holds RGD runtime configuration parameters.
@@ -249,20 +414,31 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	if err != nil {
 		return nil, fmt.Errorf("failed to get schema without status: %w", err)
 	}
-	celSchemas[SchemaVarName] = schemaWithoutStatus
+	celSchemas[SchemaVarName] = typedSchemaInput{
+		schema:       schemaWithoutStatus,
+		rootTypeName: fallbackRootTypeName("instance_schema"),
+	}
 
 	// Create a single typed CEL environment with all schemas for compilation.
 	// Following Kubernetes best practice: create one env, extend once at init,
 	// compile all expressions against it. AST inspection handles scope validation.
-	typedEnv, err := krocel.TypedEnvironment(celSchemas)
+	declTypeCache := newDeclTypeBuildCache()
+	typedEnv, typeProvider, err := buildTypedEnvironmentWithCache(celSchemas, declTypeCache)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create typed CEL environment: %w", err)
 	}
-	typeProvider := krocel.CreateDeclTypeProvider(celSchemas)
 
 	// Validate and compile all resource CEL expressions.
 	for id, node := range nodes {
-		if err := validateAndCompileNode(node, inspector, typedEnv, schemas[id], typeProvider); err != nil {
+		if err := validateAndCompileNode(
+			node,
+			inspector,
+			typedEnv,
+			schemas[id],
+			nodeRootTypeName(node),
+			typeProvider,
+			declTypeCache,
+		); err != nil {
 			return nil, fmt.Errorf("failed to validate resource %q: %w", id, err)
 		}
 	}
@@ -936,8 +1112,8 @@ func parseForEachDimensions(apiDimensions []v1alpha1.ForEachDimension) ([]ForEac
 // For each segment:
 //   - Named segments: append to type name, look up in schema properties
 //   - Index segments: dereference array to element schema, append ".@idx" to type name
-func resolveSchemaAndTypeName(segments []fieldpath.Segment, rootSchema *spec.Schema, resourceID string) (*spec.Schema, string, error) {
-	typeName := krocel.TypeNamePrefix + resourceID
+func resolveSchemaAndTypeName(segments []fieldpath.Segment, rootSchema *spec.Schema, rootTypeName string) (*spec.Schema, string, error) {
+	typeName := rootTypeName
 	currentSchema := rootSchema
 
 	for _, seg := range segments {
@@ -965,7 +1141,13 @@ func resolveSchemaAndTypeName(segments []fieldpath.Segment, rootSchema *spec.Sch
 // getExpectedTypeForField computes the expected CEL type for a field descriptor.
 // For standalone expressions, the type is derived from the OpenAPI schema at the path.
 // For string templates, the expected type is always string.
-func getExpectedTypeForField(descriptor *variable.FieldDescriptor, rootSchema *spec.Schema, resourceID string) *cel.Type {
+func getExpectedTypeForField(
+	descriptor *variable.FieldDescriptor,
+	rootSchema *spec.Schema,
+	rootTypeName string,
+	typeProvider *krocel.DeclTypeProvider,
+	declTypeCache *declTypeBuildCache,
+) *cel.Type {
 	if !descriptor.StandaloneExpression {
 		return cel.StringType
 	}
@@ -975,21 +1157,31 @@ func getExpectedTypeForField(descriptor *variable.FieldDescriptor, rootSchema *s
 		return cel.DynType
 	}
 
-	schema, typeName, err := resolveSchemaAndTypeName(segments, rootSchema, resourceID)
+	schema, typeName, err := resolveSchemaAndTypeName(segments, rootSchema, rootTypeName)
 	if err != nil {
 		return cel.DynType
 	}
 
-	return getCelTypeFromSchema(schema, typeName)
+	if typeProvider != nil {
+		if declType, found := typeProvider.FindDeclType(typeName); found {
+			return declType.CelType()
+		}
+	}
+
+	return getCelTypeFromSchema(schema, typeName, declTypeCache)
 }
 
 // getCelTypeFromSchema converts an OpenAPI schema to a CEL type with the given type name
-func getCelTypeFromSchema(schema *spec.Schema, typeName string) *cel.Type {
+func getCelTypeFromSchema(schema *spec.Schema, typeName string, declTypeCache *declTypeBuildCache) *cel.Type {
 	if schema == nil {
 		return cel.DynType
 	}
 
-	declType := krocel.SchemaDeclTypeWithMetadata(&openapi.Schema{Schema: schema}, false)
+	if declTypeCache != nil {
+		return declTypeCache.celType(schema, typeName)
+	}
+
+	declType := schemaDeclTypeWithMetadata(&openapi.Schema{Schema: schema}, false)
 	if declType == nil {
 		return cel.DynType
 	}
@@ -1031,7 +1223,15 @@ func lookupSchemaAtField(schema *spec.Schema, field string) *spec.Schema {
 // - readyWhen expressions (resource readiness conditions)
 //
 // Uses the shared inspectorEnv for AST inspection and typed env for compilation.
-func validateAndCompileNode(node *Node, inspector *ast.Inspector, env *cel.Env, nodeSchema *spec.Schema, typeProvider *krocel.DeclTypeProvider) error {
+func validateAndCompileNode(
+	node *Node,
+	inspector *ast.Inspector,
+	env *cel.Env,
+	nodeSchema *spec.Schema,
+	nodeTypeName string,
+	typeProvider *krocel.DeclTypeProvider,
+	declTypeCache *declTypeBuildCache,
+) error {
 	// Track iterator types for extending template environment
 	var iteratorTypes map[string]*cel.Type
 
@@ -1045,7 +1245,15 @@ func validateAndCompileNode(node *Node, inspector *ast.Inspector, env *cel.Env, 
 	}
 
 	// Validate and compile template expressions
-	if err := validateAndCompileTemplates(env, node, nodeSchema, typeProvider, iteratorTypes); err != nil {
+	if err := validateAndCompileTemplates(
+		env,
+		node,
+		nodeSchema,
+		nodeTypeName,
+		typeProvider,
+		iteratorTypes,
+		declTypeCache,
+	); err != nil {
 		return err
 	}
 
@@ -1085,7 +1293,15 @@ func validateAndCompileNode(node *Node, inspector *ast.Inspector, env *cel.Env, 
 		readyEnv := env
 		if node.Meta.Type == NodeTypeCollection {
 			var err error
-			readyEnv, err = krocel.TypedEnvironment(map[string]*spec.Schema{EachVarName: nodeSchema})
+			readyEnv, _, err = buildTypedEnvironmentWithCache(
+				map[string]typedSchemaInput{
+					EachVarName: {
+						schema:       nodeSchema,
+						rootTypeName: nodeTypeName,
+					},
+				},
+				declTypeCache,
+			)
 			if err != nil {
 				return fmt.Errorf("failed to create CEL environment for readyWhen validation: %w", err)
 			}
@@ -1105,8 +1321,10 @@ func validateAndCompileTemplates(
 	env *cel.Env,
 	node *Node,
 	nodeSchema *spec.Schema,
+	nodeTypeName string,
 	typeProvider *krocel.DeclTypeProvider,
 	iteratorTypes map[string]*cel.Type,
+	declTypeCache *declTypeBuildCache,
 ) error {
 	// If we have iterator types (from forEach), extend the environment with those declarations
 	compileEnv := env
@@ -1124,7 +1342,13 @@ func validateAndCompileTemplates(
 
 	for _, templateVariable := range node.Variables {
 		// Compute expected type for this field
-		expectedType := getExpectedTypeForField(&templateVariable.FieldDescriptor, nodeSchema, node.Meta.ID)
+		expectedType := getExpectedTypeForField(
+			&templateVariable.FieldDescriptor,
+			nodeSchema,
+			nodeTypeName,
+			typeProvider,
+			declTypeCache,
+		)
 
 		for _, expression := range templateVariable.Expressions {
 			// Parse, type-check, and compile
@@ -1301,17 +1525,23 @@ func getSchemaWithoutStatus(crd *extv1.CustomResourceDefinition) (*spec.Schema, 
 	return specSchema, nil
 }
 
-// collectNodeSchemas builds a map of node IDs to their OpenAPI schemas.
+// collectNodeSchemas builds typed schema inputs for CEL validation.
 // Collections (forEach) and external collections (selector) are wrapped as
 // list types so other nodes can reference them as arrays and use CEL list functions.
-func collectNodeSchemas(nodes map[string]*Node, nodeSchemas map[string]*spec.Schema) map[string]*spec.Schema {
-	result := make(map[string]*spec.Schema)
+func collectNodeSchemas(nodes map[string]*Node, nodeSchemas map[string]*spec.Schema) map[string]typedSchemaInput {
+	result := make(map[string]typedSchemaInput)
 	for id, node := range nodes {
 		if sch, ok := nodeSchemas[id]; ok {
 			if node.Meta.Type == NodeTypeCollection || node.Meta.Type == NodeTypeExternalCollection {
-				result[id] = schema.WrapSchemaAsList(sch)
+				result[id] = typedSchemaInput{
+					schema:       schema.WrapSchemaAsList(sch),
+					rootTypeName: nodeCollectionRootTypeName(node),
+				}
 			} else {
-				result[id] = sch
+				result[id] = typedSchemaInput{
+					schema:       sch,
+					rootTypeName: nodeRootTypeName(node),
+				}
 			}
 		}
 	}
