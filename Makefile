@@ -1,4 +1,4 @@
-OCI_REPO ?= registry.k8s.io/kro
+OCI_REPO ?= 095708837592.dkr.ecr.us-west-2.amazonaws.com
 
 HELM_IMAGE ?= ${OCI_REPO}/charts/kro
 KO_DOCKER_REPO ?= ${OCI_REPO}/kro
@@ -353,6 +353,14 @@ cli:
 	go build -o bin/kro cmd/kro/main.go
 	sudo mv bin/kro /usr/local/bin
 	@echo "CLI built successfully"
+
+.PHONY: stress-tool
+stress-tool: ## Build the stress-testing CLI
+	go build -o bin/krostress ./tools/stress-testing/cmd/krostress
+
+.PHONY: stress-tool-test
+stress-tool-test: ## Run tests for the stress-testing CLI
+	go test ./tools/stress-testing/...
 
 ##@ E2E Tests
 
