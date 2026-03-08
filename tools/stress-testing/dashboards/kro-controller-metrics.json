@@ -16,7 +16,7 @@
     ]
   },
   "editable": true,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "panels": [
     {
       "collapsed": false,
@@ -37,17 +37,143 @@
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "cores"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "${datasource}"
+          },
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"kro\",container=\"kro\",pod=~\"kro-.*\",image!=\"\"}[2m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Usage",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 3,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "${datasource}"
+          },
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"kro\",container=\"kro\",pod=~\"kro-.*\",image!=\"\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Working Set",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 6,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "${datasource}"
+          },
+          "expr": "sum(go_memstats_heap_inuse_bytes{namespace=\"kro\",service=\"kro-metrics\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Heap In Use",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
           "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 0,
+        "w": 3,
+        "x": 9,
         "y": 1
       },
-      "id": 2,
+      "id": 5,
       "options": {
         "orientation": "auto",
         "reduceOptions": {
@@ -79,59 +205,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 4,
+        "w": 3,
+        "x": 12,
         "y": 1
       },
-      "id": 3,
-      "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "text": {}
-      },
-      "targets": [
-        {
-          "datasource": {
-            "uid": "${datasource}"
-          },
-          "expr": "sum(rate(controller_runtime_reconcile_errors_total{namespace=\"kro\",service=\"kro-metrics\"}[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "Reconcile Errors (errors/s)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 8,
-        "y": 1
-      },
-      "id": 4,
+      "id": 6,
       "options": {
         "orientation": "auto",
         "reduceOptions": {
@@ -163,17 +247,50 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent"
+          "unit": "cores"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "threads"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "gomaxprocs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 12,
+        "w": 3,
+        "x": 15,
         "y": 1
       },
-      "id": 5,
+      "id": 7,
       "options": {
         "orientation": "auto",
         "reduceOptions": {
@@ -196,7 +313,7 @@
           "refId": "A"
         }
       ],
-      "title": "Dynamic GVR Count",
+      "title": "Active GVRs",
       "type": "stat"
     },
     {
@@ -211,11 +328,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 16,
+        "w": 3,
+        "x": 18,
         "y": 1
       },
-      "id": 6,
+      "id": 59,
       "options": {
         "orientation": "auto",
         "reduceOptions": {
@@ -238,7 +355,7 @@
           "refId": "A"
         }
       ],
-      "title": "Total Workqueue Depth",
+      "title": "Workqueue Depth",
       "type": "stat"
     },
     {
@@ -253,11 +370,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 20,
+        "w": 3,
+        "x": 21,
         "y": 1
       },
-      "id": 7,
+      "id": 60,
       "options": {
         "orientation": "auto",
         "reduceOptions": {
@@ -276,11 +393,11 @@
           "datasource": {
             "uid": "${datasource}"
           },
-          "expr": "max(dynamic_controller_queue_length{namespace=\"kro\",service=\"kro-metrics\"})",
+          "expr": "max(go_goroutines{namespace=\"kro\",service=\"kro-metrics\"})",
           "refId": "A"
         }
       ],
-      "title": "Dynamic Queue Length",
+      "title": "Goroutines",
       "type": "stat"
     },
     {
@@ -2294,7 +2411,7 @@
           "refId": "C"
         }
       ],
-      "title": "CPU and Threads",
+      "title": "CPU and Threading",
       "type": "timeseries"
     },
     {
