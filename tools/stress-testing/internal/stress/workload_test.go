@@ -146,6 +146,119 @@ func TestDeploymentComplexityBuildsFiftyPairsAndLinksThem(t *testing.T) {
 	}
 }
 
+func TestRealComplexityBuildsTwentyResourcesWithAckAndZeroReplicaDefaults(t *testing.T) {
+	generated := RGDGenerator("Real", DefaultComplexities["real"])(1)
+
+	resources, found, err := unstructured.NestedSlice(generated.Object, "spec", "resources")
+	if err != nil || !found {
+		t.Fatalf("expected resources, found=%v err=%v", found, err)
+	}
+	if len(resources) != 20 {
+		t.Fatalf("expected 20 real-complexity resources, got %d", len(resources))
+	}
+
+	spec, found, err := unstructured.NestedMap(generated.Object, "spec", "schema", "spec")
+	if err != nil || !found {
+		t.Fatalf("expected schema spec, found=%v err=%v", found, err)
+	}
+	if got, want := spec["replicas"], "integer | default=0"; got != want {
+		t.Fatalf("expected replicas schema %q, got %v", want, got)
+	}
+
+	expectedKinds := map[string]int{
+		"ConfigMap":           3,
+		"Secret":              1,
+		"ServiceAccount":      1,
+		"Role":                2,
+		"RoleBinding":         2,
+		"Deployment":          1,
+		"Service":             2,
+		"NetworkPolicy":       1,
+		"PodDisruptionBudget": 1,
+		"Lease":               1,
+		"Job":                 1,
+		"CronJob":             1,
+		"Ingress":             1,
+		"Bucket":              1,
+		"VPC":                 1,
+	}
+
+	gotKinds := map[string]int{}
+	for _, resource := range resources {
+		resourceMap, ok := resource.(map[string]interface{})
+		if !ok {
+			t.Fatalf("unexpected resource type %T", resource)
+		}
+		template, ok := resourceMap["template"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("missing template in resource %#v", resourceMap)
+		}
+		kind, _ := template["kind"].(string)
+		gotKinds[kind]++
+	}
+	if len(gotKinds) != len(expectedKinds) {
+		t.Fatalf("unexpected kind count %#v", gotKinds)
+	}
+	for kind, want := range expectedKinds {
+		if got := gotKinds[kind]; got != want {
+			t.Fatalf("expected %d %s resources, got %d", want, kind, got)
+		}
+	}
+
+	deployment := findResourceByID(t, resources, "deployment")
+	deploymentTemplate, ok := deployment["template"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing deployment template")
+	}
+	if got, want := nestedMapValue(t, deploymentTemplate, "spec", "replicas"), "${schema.spec.replicas}"; got != want {
+		t.Fatalf("expected deployment replicas %q, got %v", want, got)
+	}
+
+	deploymentSpec, ok := nestedMapValue(t, deploymentTemplate, "spec", "template", "spec").(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing deployment pod spec")
+	}
+	if got, want := deploymentSpec["serviceAccountName"], "${serviceAccount.metadata.name}"; got != want {
+		t.Fatalf("expected deployment SA ref %q, got %v", want, got)
+	}
+
+	preflightJob := findResourceByID(t, resources, "preflightJob")
+	preflightTemplate, ok := preflightJob["template"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing preflight job template")
+	}
+	if got, want := nestedMapValue(t, preflightTemplate, "spec", "suspend"), true; got != want {
+		t.Fatalf("expected suspended job, got %v", got)
+	}
+
+	maintenanceCron := findResourceByID(t, resources, "maintenanceCron")
+	maintenanceTemplate, ok := maintenanceCron["template"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing maintenance cron template")
+	}
+	if got, want := nestedMapValue(t, maintenanceTemplate, "spec", "suspend"), true; got != want {
+		t.Fatalf("expected suspended cronjob, got %v", got)
+	}
+
+	ackBucket := findResourceByID(t, resources, "ackBucket")
+	ackBucketTemplate, ok := ackBucket["template"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing ack bucket template")
+	}
+	if got, want := ackBucketTemplate["apiVersion"], "s3.services.k8s.aws/v1alpha1"; got != want {
+		t.Fatalf("expected bucket apiVersion %q, got %v", want, got)
+	}
+
+	ackVpc := findResourceByID(t, resources, "ackVpc")
+	ackVpcTemplate, ok := ackVpc["template"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing ack vpc template")
+	}
+	if got, want := ackVpcTemplate["apiVersion"], "ec2.services.k8s.aws/v1alpha1"; got != want {
+		t.Fatalf("expected vpc apiVersion %q, got %v", want, got)
+	}
+}
+
 func findResourceByID(t *testing.T, resources []interface{}, id string) map[string]interface{} {
 	t.Helper()
 
@@ -157,5 +270,27 @@ func findResourceByID(t *testing.T, resources []interface{}, id string) map[stri
 	}
 
 	t.Fatalf("resource %q not found", id)
+	return nil
+}
+
+func nestedMapValue(t *testing.T, value map[string]interface{}, path ...string) interface{} {
+	t.Helper()
+
+	current := value
+	for i, segment := range path {
+		next, ok := current[segment]
+		if !ok {
+			t.Fatalf("missing path segment %q in %#v", segment, current)
+		}
+		if i == len(path)-1 {
+			return next
+		}
+		nextMap, ok := next.(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected map at %q, got %T", segment, next)
+		}
+		current = nextMap
+	}
+
 	return nil
 }

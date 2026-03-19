@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/util/retry"
@@ -158,12 +159,20 @@ func (c *Controller) updateStatus(rcx *ReconcileContext) error {
 	inst := rcx.Instance.DeepCopy()
 	inst.Object["status"] = status
 
+	attempt := 0
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if attempt > 0 {
+			statusUpdateRetriesTotal.Inc()
+		}
+		attempt++
 		cur, err := c.client.Dynamic().
 			Resource(c.gvr).
 			Namespace(inst.GetNamespace()).
 			Get(rcx.Ctx, inst.GetName(), metav1.GetOptions{})
 		if err != nil {
+			if apierrors.IsConflict(err) {
+				statusUpdateConflictsTotal.Inc()
+			}
 			return err
 		}
 		cur.Object["status"] = status
@@ -171,6 +180,9 @@ func (c *Controller) updateStatus(rcx *ReconcileContext) error {
 			Resource(c.gvr).
 			Namespace(inst.GetNamespace()).
 			UpdateStatus(rcx.Ctx, cur, metav1.UpdateOptions{})
+		if apierrors.IsConflict(err) {
+			statusUpdateConflictsTotal.Inc()
+		}
 		return err
 	})
 	if err != nil {

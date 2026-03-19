@@ -252,7 +252,7 @@ func TestReconcileResourceGraphDefinition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reconciler, rgd, manager := tt.build(t)
-			topologicalOrder, resourcesInfo, err := reconciler.reconcileResourceGraphDefinition(context.Background(), rgd)
+			topologicalOrder, resourcesInfo, _, err := reconciler.reconcileResourceGraphDefinition(context.Background(), rgd)
 			tt.check(t, topologicalOrder, resourcesInfo, err, rgd, manager)
 		})
 	}

@@ -25,6 +25,14 @@ func init() {
 		instanceReconcileDurationSeconds,
 		instanceReconcileTotal,
 		instanceReconcileErrorsTotal,
+		plannedNodesTotal,
+		desiredObjectsTotal,
+		applysetApplyTotal,
+		applysetApplyDuration,
+		applysetPruneTotal,
+		applysetPruneDuration,
+		statusUpdateRetriesTotal,
+		statusUpdateConflictsTotal,
 	)
 }
 
@@ -41,7 +49,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "instance_reconcile_duration_seconds",
 			Help:    "Duration of instance reconciliation in seconds per GVR",
-			Buckets: prometheus.DefBuckets,
+			Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60, 120, 300},
 		},
 		[]string{"gvr"},
 	)
@@ -60,5 +68,56 @@ var (
 			Help: "Total number of instance reconciliation errors per GVR",
 		},
 		[]string{"gvr"},
+	)
+
+	plannedNodesTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "instance_controller_planned_nodes_total",
+			Help: "Total number of instance graph nodes planned across reconciliations",
+		},
+	)
+	desiredObjectsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "instance_controller_desired_objects_total",
+			Help: "Total number of desired child objects produced across reconciliations",
+		},
+	)
+	applysetApplyTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "instance_controller_applyset_apply_total",
+			Help: "Total number of applyset resources submitted for server-side apply",
+		},
+	)
+	applysetApplyDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "instance_controller_applyset_apply_duration_seconds",
+			Help:    "Duration of applyset apply operations",
+			Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60, 120, 300},
+		},
+	)
+	applysetPruneTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "instance_controller_applyset_prune_total",
+			Help: "Total number of applyset resources pruned",
+		},
+	)
+	applysetPruneDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "instance_controller_applyset_prune_duration_seconds",
+			Help:    "Duration of applyset prune operations",
+			Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60, 120, 300},
+		},
+	)
+	statusUpdateRetriesTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "instance_controller_status_update_retries_total",
+			Help: "Total number of instance status update retries",
+		},
+	)
+	statusUpdateConflictsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "instance_controller_status_update_conflicts_total",
+			Help: "Total number of instance status update conflicts",
+		},
 	)
 )

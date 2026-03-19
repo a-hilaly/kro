@@ -23,6 +23,7 @@ import (
 	"k8s.io/kube-openapi/pkg/validation/spec"
 
 	krocel "github.com/kubernetes-sigs/kro/pkg/cel"
+	graphschema "github.com/kubernetes-sigs/kro/pkg/graph/schema"
 	"github.com/kubernetes-sigs/kro/pkg/graph/variable"
 )
 
@@ -355,18 +356,12 @@ func getSchemaTypeName(v interface{}) string {
 }
 
 func getFieldSchema(schema *spec.Schema, field string) (*spec.Schema, error) {
-	if schema.Properties != nil {
-		if fieldSchema, ok := schema.Properties[field]; ok {
-			return &fieldSchema, nil
-		}
+	if fieldSchema := graphschema.LookupFieldSchema(schema, field); fieldSchema != nil {
+		return fieldSchema, nil
 	}
 
-	if schema.AdditionalProperties != nil {
-		if schema.AdditionalProperties.Schema != nil {
-			return schema.AdditionalProperties.Schema, nil
-		} else if schema.AdditionalProperties.Allows {
-			return &spec.Schema{}, nil
-		}
+	if fieldSchema := graphschema.LookupAdditionalPropertiesSchema(schema); fieldSchema != nil {
+		return fieldSchema, nil
 	}
 
 	return nil, fmt.Errorf("schema not found for field %s", field)

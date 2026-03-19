@@ -22,15 +22,15 @@ import (
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
 
-// SessionCache caches per-build CEL artifacts: checked ASTs, compiled programs,
-// and extended environments. Short-lived, created fresh per
-// NewResourceGraphDefinition() call and discarded afterward.
+// SessionCache caches per-build CEL artifacts and short-lived extended
+// environments. It is created fresh per NewResourceGraphDefinition() call and
+// discarded afterward.
 //
-// Programs, checked ASTs, and extended envs are RGD-specific — expressions and
-// parent envs differ per RGD, so cross-RGD cache hits are near zero. Keeping
-// these in a short-lived cache prevents stale objects from deleted RGDs
-// accumulating on long-lived builders.
+// When builderCache is set, ParseAndCheck / ParseCheckAndCompile delegate to the
+// long-lived BuilderCache so identical expressions can be reused across RGDs.
+// Extended environments remain scoped to the current build.
 type SessionCache struct {
+	builderCache *BuilderCache
 	checkedASTs  sync.Map // key: ProgramCacheKey, value: *cel.Ast
 	programs     sync.Map // key: ProgramCacheKey, value: *ProgramCacheEntry
 	extendedEnvs sync.Map // key: extendedEnvCacheKey, value: *cel.Env
@@ -41,9 +41,19 @@ func NewSessionCache() *SessionCache {
 	return &SessionCache{}
 }
 
+// NewSessionCacheWithBuilder returns a SessionCache that delegates program/AST
+// caching to the long-lived BuilderCache.
+func NewSessionCacheWithBuilder(builderCache *BuilderCache) *SessionCache {
+	return &SessionCache{builderCache: builderCache}
+}
+
 // ParseAndCheck parses and type-checks a CEL expression without compiling
 // a program. The checked AST is cached for later reuse by ParseCheckAndCompile.
 func (c *SessionCache) ParseAndCheck(env *cel.Env, expr string) (*cel.Ast, error) {
+	if c.builderCache != nil {
+		return c.builderCache.ParseAndCheck(env, expr)
+	}
+
 	key := ProgramCacheKey{Expr: expr, Env: env}
 
 	// Check if we already have a full program cached — reuse its AST.
@@ -81,6 +91,10 @@ func (c *SessionCache) ParseAndCheck(env *cel.Env, expr string) (*cel.Ast, error
 // If a checked AST was previously cached by ParseAndCheck, it is reused
 // to skip the parse and check phases.
 func (c *SessionCache) ParseCheckAndCompile(env *cel.Env, expr string) (cel.Program, *cel.Ast, error) {
+	if c.builderCache != nil {
+		return c.builderCache.ParseCheckAndCompile(env, expr)
+	}
+
 	key := ProgramCacheKey{Expr: expr, Env: env}
 	if v, ok := c.programs.Load(key); ok {
 		sessionCacheHitsTotal.WithLabelValues("program").Inc()

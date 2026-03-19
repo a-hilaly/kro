@@ -173,6 +173,7 @@ func (e *Environment) setupController() error {
 		dc,
 		e.GraphBuilder,
 		40,
+		3*time.Second,
 		graph.RGDConfig{
 			MaxCollectionSize:          1000,
 			MaxCollectionDimensionSize: 10,

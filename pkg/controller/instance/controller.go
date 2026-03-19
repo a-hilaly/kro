@@ -123,7 +123,12 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (err error
 
 	start := time.Now()
 	defer func() {
-		watcher.Done(err == nil)
+		commitWatches := shouldCommitWatchSet(err)
+		log.V(10).Info("Finalizing instance watch set",
+			"commit", commitWatches,
+			"error", err,
+		)
+		watcher.Done(commitWatches)
 		gvr := c.gvr.String()
 		instanceReconcileDurationSeconds.WithLabelValues(gvr).Observe(time.Since(start).Seconds())
 		instanceReconcileTotal.WithLabelValues(gvr).Inc()
@@ -244,6 +249,18 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (err error
 	// 8. Persist status/conditions
 	//--------------------------------------------------------------
 	return c.updateStatus(rcx)
+}
+
+func shouldCommitWatchSet(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	var (
+		rn  *requeue.RequeueNeeded
+		rna *requeue.RequeueNeededAfter
+	)
+	return errors.As(err, &rn) || errors.As(err, &rna)
 }
 
 func (c *Controller) ensureManaged(rcx *ReconcileContext) error {

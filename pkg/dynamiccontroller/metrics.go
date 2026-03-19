@@ -27,7 +27,15 @@ func init() {
 		requeueTotal,
 		reconcileDuration,
 		gvrCount,
+		registeredGVRs,
+		staleRegistrations,
 		queueLength,
+		registerTotal,
+		deregisterTotal,
+		registerRollbackTotal,
+		registerFailuresTotal,
+		deregisterFailuresTotal,
+		reconcileFailuresAfterRegisterTotal,
 		handlerCount,
 		handlerAttachTotal,
 		handlerDetachTotal,
@@ -63,7 +71,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "dynamic_controller_reconcile_duration_seconds",
 			Help:    "Duration of reconciliations per GVR",
-			Buckets: prometheus.DefBuckets,
+			Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60, 120, 300},
 		},
 		[]string{"gvr"},
 	)
@@ -73,11 +81,60 @@ var (
 			Help: "Number of Instance GVRs currently managed by the controller",
 		},
 	)
+	registeredGVRs = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "dynamic_controller_registered_gvrs",
+			Help: "Number of parent GVR registrations currently held by the controller",
+		},
+	)
+	staleRegistrations = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "dynamic_controller_stale_registrations",
+			Help: "Number of parent GVR registrations whose live controller state is inconsistent",
+		},
+	)
 	queueLength = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "dynamic_controller_queue_length",
 			Help: "Current length of the workqueue",
 		},
+	)
+	registerTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dynamic_controller_register_total",
+			Help: "Total number of successful parent GVR registrations",
+		},
+	)
+	deregisterTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dynamic_controller_deregister_total",
+			Help: "Total number of successful parent GVR deregistrations",
+		},
+	)
+	registerRollbackTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dynamic_controller_register_rollback_total",
+			Help: "Total number of partial parent GVR registrations rolled back after failure",
+		},
+	)
+	registerFailuresTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dynamic_controller_register_failures_total",
+			Help: "Total number of failed parent GVR registration attempts",
+		},
+	)
+	deregisterFailuresTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dynamic_controller_deregister_failures_total",
+			Help: "Total number of failed parent GVR deregistration operations",
+		},
+	)
+	reconcileFailuresAfterRegisterTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "dynamic_controller_reconcile_failures_after_register_total",
+			Help: "Total number of reconcile failures observed after a successful parent GVR registration",
+		},
+		[]string{"reason"},
 	)
 	handlerCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "dynamic_controller_handler_count_total",
@@ -102,7 +159,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "dynamic_controller_informer_sync_duration_seconds",
 			Help:    "Duration of informer cache sync per GVR",
-			Buckets: prometheus.DefBuckets,
+			Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60, 120, 300},
 		},
 		[]string{"gvr"},
 	)

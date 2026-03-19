@@ -797,7 +797,7 @@ func TestProcessApplyResultsAndReadiness(t *testing.T) {
 	assert.Equal(t, NodeStateError, rcx.StateManager.NodeStates["configs"].State)
 
 	waiting := &NodeState{}
-	setStateFromReadiness(rcx.Runtime.Nodes()[0], waiting)
+	setStateFromReadiness(rcx, rcx.Runtime.Nodes()[0], waiting)
 	assert.Equal(t, NodeStateWaitingForReadiness, waiting.State)
 
 	errorNode := &graph.Node{
@@ -815,7 +815,7 @@ func TestProcessApplyResultsAndReadiness(t *testing.T) {
 	errState := &NodeState{}
 	controller, rcx, _ = newControllerAndContext(t, instance, newTestGraph(errorNode))
 	rcx.Runtime.Nodes()[0].SetObserved([]*unstructured.Unstructured{newDeploymentObject("bad", "default")})
-	setStateFromReadiness(rcx.Runtime.Nodes()[0], errState)
+	setStateFromReadiness(rcx, rcx.Runtime.Nodes()[0], errState)
 	assert.Equal(t, NodeStateError, errState.State)
 
 	controller, rcx, _ = newControllerAndContext(t, instance, newTestGraph(resourceNode))

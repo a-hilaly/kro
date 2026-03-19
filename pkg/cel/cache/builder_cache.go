@@ -16,6 +16,8 @@ package cache
 
 import (
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	apiservercel "k8s.io/apiserver/pkg/cel"
@@ -31,6 +33,15 @@ type BuilderCache struct {
 	namedTypes    sync.Map // key: namedTypeCacheKey, value: *apiservercel.DeclType
 	typedEnvs     sync.Map // key: string, value: *TypedEnvEntry
 	fieldTypeMaps sync.Map // key: *apiservercel.DeclType, value: map[string]*apiservercel.DeclType
+	checkedASTs   sync.Map // key: ProgramCacheKey, value: *cel.Ast
+	programs      sync.Map // key: ProgramCacheKey, value: *ProgramCacheEntry
+
+	declTypeCount     atomic.Int64
+	namedTypeCount    atomic.Int64
+	typedEnvCount     atomic.Int64
+	fieldTypeMapCount atomic.Int64
+	checkedASTCount   atomic.Int64
+	programCount      atomic.Int64
 }
 
 // NewBuilderCache returns a fresh BuilderCache instance.
@@ -47,14 +58,18 @@ func (c *BuilderCache) SchemaDeclType(schema *spec.Schema, create func(*spec.Sch
 		return nil
 	}
 	if v, ok := c.declTypes.Load(schema); ok {
-		builderCacheHitsTotal.WithLabelValues("decl_type").Inc()
+		recordBuilderCacheHit(cacheDeclTypes)
 		return v.(*apiservercel.DeclType)
 	}
-	builderCacheMissesTotal.WithLabelValues("decl_type").Inc()
+	recordBuilderCacheMiss(cacheDeclTypes)
+	start := time.Now()
 	declType := create(schema)
+	builderCacheFillDuration.WithLabelValues(cacheDeclTypes).Observe(time.Since(start).Seconds())
 	if declType != nil {
-		c.declTypes.Store(schema, declType)
-		builderCacheSize.WithLabelValues("decl_type").Inc()
+		if actual, loaded := c.declTypes.LoadOrStore(schema, declType); loaded {
+			return actual.(*apiservercel.DeclType)
+		}
+		builderCacheEntries.WithLabelValues(cacheDeclTypes).Set(float64(c.declTypeCount.Add(1)))
 	}
 	return declType
 }
@@ -65,13 +80,17 @@ func (c *BuilderCache) SchemaDeclType(schema *spec.Schema, create func(*spec.Sch
 func (c *BuilderCache) MaybeAssignTypeName(schema *spec.Schema, declType *apiservercel.DeclType, typeName string) *apiservercel.DeclType {
 	key := namedTypeCacheKey{schema: schema, name: typeName}
 	if v, ok := c.namedTypes.Load(key); ok {
-		builderCacheHitsTotal.WithLabelValues("named_type").Inc()
+		recordBuilderCacheHit(cacheNamedTypes)
 		return v.(*apiservercel.DeclType)
 	}
-	builderCacheMissesTotal.WithLabelValues("named_type").Inc()
+	recordBuilderCacheMiss(cacheNamedTypes)
+	start := time.Now()
 	named := declType.MaybeAssignTypeName(typeName)
-	c.namedTypes.Store(key, named)
-	builderCacheSize.WithLabelValues("named_type").Inc()
+	builderCacheFillDuration.WithLabelValues(cacheNamedTypes).Observe(time.Since(start).Seconds())
+	if actual, loaded := c.namedTypes.LoadOrStore(key, named); loaded {
+		return actual.(*apiservercel.DeclType)
+	}
+	builderCacheEntries.WithLabelValues(cacheNamedTypes).Set(float64(c.namedTypeCount.Add(1)))
 	return named
 }
 
@@ -83,17 +102,24 @@ func (c *BuilderCache) TypedEnvironmentWithProvider(schemas map[string]*spec.Sch
 	if len(schemas) > 0 {
 		key := MakeEnvCacheKey(schemas)
 		if v, ok := c.typedEnvs.Load(key); ok {
-			builderCacheHitsTotal.WithLabelValues("typed_env").Inc()
+			recordBuilderCacheHit(cacheTypedEnvs)
 			entry := v.(*TypedEnvEntry)
 			return entry.Env, entry.Provider, nil
 		}
-		builderCacheMissesTotal.WithLabelValues("typed_env").Inc()
+		recordBuilderCacheMiss(cacheTypedEnvs)
+		start := time.Now()
 		env, provider, err := create()
+		builderCacheFillDuration.WithLabelValues(cacheTypedEnvs).Observe(time.Since(start).Seconds())
 		if err != nil {
+			recordBuilderCacheError(cacheTypedEnvs)
 			return nil, nil, err
 		}
-		c.typedEnvs.Store(key, &TypedEnvEntry{Env: env, Provider: provider})
-		builderCacheSize.WithLabelValues("typed_env").Inc()
+		entry := &TypedEnvEntry{Env: env, Provider: provider}
+		if actual, loaded := c.typedEnvs.LoadOrStore(key, entry); loaded {
+			cached := actual.(*TypedEnvEntry)
+			return cached.Env, cached.Provider, nil
+		}
+		builderCacheEntries.WithLabelValues(cacheTypedEnvs).Set(float64(c.typedEnvCount.Add(1)))
 		return env, provider, nil
 	}
 	return create()
@@ -103,12 +129,93 @@ func (c *BuilderCache) TypedEnvironmentWithProvider(schemas map[string]*spec.Sch
 // On cache miss, the create callback is called to build the map.
 func (c *BuilderCache) FieldTypeMap(t *apiservercel.DeclType, create func() map[string]*apiservercel.DeclType) map[string]*apiservercel.DeclType {
 	if v, ok := c.fieldTypeMaps.Load(t); ok {
-		builderCacheHitsTotal.WithLabelValues("field_type_map").Inc()
+		recordBuilderCacheHit(cacheFieldTypeMaps)
 		return v.(map[string]*apiservercel.DeclType)
 	}
-	builderCacheMissesTotal.WithLabelValues("field_type_map").Inc()
+	recordBuilderCacheMiss(cacheFieldTypeMaps)
+	start := time.Now()
 	m := create()
-	c.fieldTypeMaps.Store(t, m)
-	builderCacheSize.WithLabelValues("field_type_map").Inc()
+	builderCacheFillDuration.WithLabelValues(cacheFieldTypeMaps).Observe(time.Since(start).Seconds())
+	if actual, loaded := c.fieldTypeMaps.LoadOrStore(t, m); loaded {
+		return actual.(map[string]*apiservercel.DeclType)
+	}
+	builderCacheEntries.WithLabelValues(cacheFieldTypeMaps).Set(float64(c.fieldTypeMapCount.Add(1)))
 	return m
+}
+
+// ParseAndCheck parses and type-checks a CEL expression and caches the checked AST
+// across RGD builds by (expression, environment).
+func (c *BuilderCache) ParseAndCheck(env *cel.Env, expr string) (*cel.Ast, error) {
+	key := ProgramCacheKey{Expr: expr, Env: env}
+
+	if v, ok := c.programs.Load(key); ok {
+		recordBuilderCacheHit(cacheCheckedASTs)
+		return v.(*ProgramCacheEntry).Ast, nil
+	}
+	if v, ok := c.checkedASTs.Load(key); ok {
+		recordBuilderCacheHit(cacheCheckedASTs)
+		return v.(*cel.Ast), nil
+	}
+
+	recordBuilderCacheMiss(cacheCheckedASTs)
+	start := time.Now()
+	parsedAST, issues := env.Parse(expr)
+	if issues != nil && issues.Err() != nil {
+		recordBuilderCacheError(cacheCheckedASTs)
+		return nil, issues.Err()
+	}
+
+	checkedAST, issues := env.Check(parsedAST)
+	builderCacheFillDuration.WithLabelValues(cacheCheckedASTs).Observe(time.Since(start).Seconds())
+	if issues != nil && issues.Err() != nil {
+		recordBuilderCacheError(cacheCheckedASTs)
+		return nil, issues.Err()
+	}
+
+	if actual, loaded := c.checkedASTs.LoadOrStore(key, checkedAST); loaded {
+		return actual.(*cel.Ast), nil
+	}
+	builderCacheEntries.WithLabelValues(cacheCheckedASTs).Set(float64(c.checkedASTCount.Add(1)))
+	return checkedAST, nil
+}
+
+// ParseCheckAndCompile returns a cached compiled program and checked AST for the
+// given expression and environment, reusing shared builder cache entries across RGDs.
+func (c *BuilderCache) ParseCheckAndCompile(env *cel.Env, expr string) (cel.Program, *cel.Ast, error) {
+	key := ProgramCacheKey{Expr: expr, Env: env}
+	if v, ok := c.programs.Load(key); ok {
+		recordBuilderCacheHit(cachePrograms)
+		entry := v.(*ProgramCacheEntry)
+		return entry.Program, entry.Ast, nil
+	}
+
+	recordBuilderCacheMiss(cachePrograms)
+
+	var checkedAST *cel.Ast
+	if v, ok := c.checkedASTs.Load(key); ok {
+		checkedAST = v.(*cel.Ast)
+	} else {
+		var err error
+		checkedAST, err = c.ParseAndCheck(env, expr)
+		if err != nil {
+			recordBuilderCacheError(cachePrograms)
+			return nil, nil, err
+		}
+	}
+
+	start := time.Now()
+	program, err := env.Program(checkedAST)
+	builderCacheFillDuration.WithLabelValues(cachePrograms).Observe(time.Since(start).Seconds())
+	if err != nil {
+		recordBuilderCacheError(cachePrograms)
+		return nil, nil, err
+	}
+
+	entry := &ProgramCacheEntry{Program: program, Ast: checkedAST}
+	if actual, loaded := c.programs.LoadOrStore(key, entry); loaded {
+		cached := actual.(*ProgramCacheEntry)
+		return cached.Program, cached.Ast, nil
+	}
+	builderCacheEntries.WithLabelValues(cachePrograms).Set(float64(c.programCount.Add(1)))
+	return program, checkedAST, nil
 }

@@ -21,15 +21,18 @@ type StageMarker struct {
 
 type RunSummary struct {
 	Title           string              `json:"title"`
+	Lead            string              `json:"lead"`
+	UnitsLabel      string              `json:"unitsLabel"`
+	LevelLabel      string              `json:"levelLabel"`
 	StartedAt       time.Time           `json:"startedAt"`
 	EndedAt         time.Time           `json:"endedAt"`
 	Duration        string              `json:"duration"`
 	Complexity      string              `json:"complexity"`
-	TotalRGDs       int                 `json:"totalRGDs"`
+	TotalUnits      int                 `json:"totalUnits"`
 	StepSize        int                 `json:"stepSize"`
 	Rate            int                 `json:"rate"`
 	Prefix          string              `json:"prefix"`
-	ExistingRGDs    int                 `json:"existingRGDs"`
+	ExistingUnits   int                 `json:"existingUnits"`
 	Observation     *metricsutil.Report `json:"observation"`
 	Markers         []StageMarker       `json:"markers"`
 	StageSnapshots  []StageSnapshot     `json:"stageSnapshots"`
@@ -260,7 +263,7 @@ const htmlTemplate = `<!doctype html>
 <body>
   <h1>{{ .Title }}</h1>
   <p class="lead">
-    5,000-RGD scale report for KRO. This report combines Prometheus sampling, staged load markers, and pprof hot paths collected during the run.
+    {{ .Lead }}
   </p>
 
   <div class="grid">
@@ -275,14 +278,14 @@ const htmlTemplate = `<!doctype html>
       <div class="small">sample count: {{ if .Observation }}{{ len .Observation.Samples }}{{ else }}0{{ end }}</div>
     </div>
     <div class="card">
-      <div class="label">RGDs Created</div>
-      <div class="metric">{{ .TotalRGDs }}</div>
+      <div class="label">{{ .UnitsLabel }}</div>
+      <div class="metric">{{ .TotalUnits }}</div>
       <div class="small">step size: {{ .StepSize }} / rate: {{ .Rate }} per sec</div>
     </div>
     <div class="card">
       <div class="label">Complexity</div>
       <div class="metric">{{ .Complexity }}</div>
-      <div class="small">prefix: {{ .Prefix }} / existing RGDs before run: {{ .ExistingRGDs }}</div>
+      <div class="small">prefix: {{ .Prefix }} / existing before run: {{ .ExistingUnits }}</div>
     </div>
   </div>
 
@@ -302,11 +305,11 @@ const htmlTemplate = `<!doctype html>
 
   <h2>Per-1000 Summary</h2>
   <div class="chart">
-    <h3>CPU At Each RGD Level</h3>
+    <h3>CPU At Each {{ .LevelLabel }} Level</h3>
     <div id="cpu-by-stage"></div>
   </div>
   <div class="chart">
-    <h3>Memory At Each RGD Level</h3>
+    <h3>Memory At Each {{ .LevelLabel }} Level</h3>
     <div id="memory-by-stage"></div>
   </div>
 

@@ -118,6 +118,9 @@ func TestWatchAndDone_ScalarWatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Commit the watch cycle — watches are batched and only registered on Done.
+	watcher.Done(true)
+
 	// Verify instance is tracked.
 	assert.Equal(t, 1, coord.InstanceWatchCount())
 
@@ -138,8 +141,6 @@ func TestWatchAndDone_ScalarWatch(t *testing.T) {
 		Namespace: "default",
 	})
 	assert.Equal(t, 1, recorder.count())
-
-	watcher.Done(true)
 }
 
 func TestWatchAndDone_CleanupStaleRequests(t *testing.T) {

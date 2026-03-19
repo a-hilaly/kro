@@ -62,7 +62,15 @@ func getObjectMetaSchema() (spec.Schema, error) {
 // This is used for collection resources which are typed as list(ResourceType)
 // so other resources can reference them with CEL list functions.
 func WrapSchemaAsList(itemSchema *spec.Schema) *spec.Schema {
-	return &spec.Schema{
+	if itemSchema == nil {
+		return nil
+	}
+
+	if cached, ok := listSchemaCache.Load(itemSchema); ok {
+		return cached.(*spec.Schema)
+	}
+
+	wrapped := &spec.Schema{
 		SchemaProps: spec.SchemaProps{
 			Type: []string{"array"},
 			Items: &spec.SchemaOrArray{
@@ -70,4 +78,6 @@ func WrapSchemaAsList(itemSchema *spec.Schema) *spec.Schema {
 			},
 		},
 	}
+	actual, _ := listSchemaCache.LoadOrStore(itemSchema, wrapped)
+	return actual.(*spec.Schema)
 }

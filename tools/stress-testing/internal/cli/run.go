@@ -272,15 +272,18 @@ func newRunCommand(root *RootOptions) *cobra.Command {
 
 			summary := reportutil.RunSummary{
 				Title:           fmt.Sprintf("KRO RGD Scale Report - %s", startedAt.Format("2006-01-02 15:04:05 MST")),
+				Lead:            "RGD scale report for KRO. This report combines Prometheus sampling, staged load markers, and pprof hot paths collected during the run.",
+				UnitsLabel:      "RGDs Created",
+				LevelLabel:      "RGD",
 				StartedAt:       startedAt,
 				EndedAt:         time.Now().UTC(),
 				Duration:        time.Since(startedAt).Round(time.Second).String(),
 				Complexity:      complexity,
-				TotalRGDs:       total,
+				TotalUnits:      total,
 				StepSize:        step,
 				Rate:            rate,
 				Prefix:          prefix,
-				ExistingRGDs:    existingRGDs,
+				ExistingUnits:   existingRGDs,
 				Observation:     observation.report,
 				Markers:         markers,
 				StageSnapshots:  reportutil.BuildStageSnapshots(observation.report, markers),
@@ -308,7 +311,7 @@ func newRunCommand(root *RootOptions) *cobra.Command {
 	rgdScaleCmd.Flags().IntVar(&total, "total", 5000, "total RGDs to create")
 	rgdScaleCmd.Flags().IntVar(&step, "step", 1000, "RGD increment per stage")
 	rgdScaleCmd.Flags().IntVar(&rate, "rate", 25, "creation rate per second")
-	rgdScaleCmd.Flags().StringVar(&complexity, "complexity", "high", "RGD complexity: low, medium, high, or deployments")
+	rgdScaleCmd.Flags().StringVar(&complexity, "complexity", "high", "RGD complexity: low, medium, high, deployments, or real")
 	rgdScaleCmd.Flags().StringVar(&prefix, "prefix", "rgdscale", "prefix for generated RGD names")
 	rgdScaleCmd.Flags().StringVar(&outputDir, "output-dir", "", "directory for report artifacts")
 	rgdScaleCmd.Flags().DurationVar(&observeInterval, "observe-interval", 10*time.Second, "Prometheus sampling interval")

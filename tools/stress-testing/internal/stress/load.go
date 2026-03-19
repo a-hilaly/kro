@@ -2,6 +2,7 @@ package stress
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -9,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -226,13 +228,113 @@ func DeleteResources(
 	return result, nil
 }
 
+func ApplyResources(
+	ctx context.Context,
+	client dynamic.Interface,
+	gvr schema.GroupVersionResource,
+	namespace string,
+	objects []*unstructured.Unstructured,
+	fieldManager string,
+) (*Result, error) {
+	if fieldManager == "" {
+		fieldManager = "krostress"
+	}
+
+	result := &Result{Total: len(objects)}
+	if len(objects) == 0 {
+		return result, nil
+	}
+
+	start := time.Now()
+	force := true
+
+	for _, original := range objects {
+		obj := original.DeepCopy()
+		unstructured.RemoveNestedField(obj.Object, "status")
+
+		raw, err := json.Marshal(obj.Object)
+		if err != nil {
+			result.Failed++
+			if len(result.Errors) < 10 {
+				result.Errors = append(result.Errors, err.Error())
+			}
+			continue
+		}
+
+		applyStart := time.Now()
+		targetNamespace := namespace
+		if obj.GetNamespace() != "" {
+			targetNamespace = obj.GetNamespace()
+		}
+
+		if targetNamespace == "" {
+			_, err = client.Resource(gvr).Patch(
+				ctx,
+				obj.GetName(),
+				types.ApplyPatchType,
+				raw,
+				metav1.PatchOptions{FieldManager: fieldManager, Force: &force},
+			)
+		} else {
+			_, err = client.Resource(gvr).Namespace(targetNamespace).Patch(
+				ctx,
+				obj.GetName(),
+				types.ApplyPatchType,
+				raw,
+				metav1.PatchOptions{FieldManager: fieldManager, Force: &force},
+			)
+		}
+
+		if err != nil {
+			result.Failed++
+			if len(result.Errors) < 10 {
+				result.Errors = append(result.Errors, err.Error())
+			}
+			continue
+		}
+
+		result.Created++
+		result.AvgLatency += time.Since(applyStart)
+	}
+
+	result.Duration = time.Since(start)
+	if result.Duration > 0 {
+		result.Rate = float64(result.Created) / result.Duration.Seconds()
+	}
+	if result.Created > 0 {
+		result.AvgLatency = result.AvgLatency / time.Duration(result.Created)
+	}
+
+	return result, nil
+}
+
 func WaitForRGDActive(ctx context.Context, client dynamic.Interface, name string, pollInterval time.Duration) error {
+	return WaitForResourceState(ctx, client, RGDGVR, "", name, "Active", pollInterval)
+}
+
+func WaitForResourceState(
+	ctx context.Context,
+	client dynamic.Interface,
+	gvr schema.GroupVersionResource,
+	namespace string,
+	name string,
+	wantState string,
+	pollInterval time.Duration,
+) error {
 	if pollInterval <= 0 {
 		pollInterval = 2 * time.Second
 	}
 
 	return wait.PollUntilContextCancel(ctx, pollInterval, true, func(ctx context.Context) (bool, error) {
-		obj, err := client.Resource(RGDGVR).Get(ctx, name, metav1.GetOptions{})
+		var (
+			obj *unstructured.Unstructured
+			err error
+		)
+		if namespace == "" {
+			obj, err = client.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
+		} else {
+			obj, err = client.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		}
 		if err != nil {
 			return false, nil
 		}
@@ -242,7 +344,7 @@ func WaitForRGDActive(ctx context.Context, client dynamic.Interface, name string
 			return false, nil
 		}
 
-		return state == "Active", nil
+		return state == wantState, nil
 	})
 }
 

@@ -19,32 +19,40 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
+const (
+	cacheDeclTypes     = "decl_types"
+	cacheNamedTypes    = "named_types"
+	cacheTypedEnvs     = "typed_envs"
+	cacheFieldTypeMaps = "field_type_maps"
+	cacheCheckedASTs   = "checked_asts"
+	cachePrograms      = "programs"
+)
+
 var (
-	// BuilderCache metrics — long-lived, cross-RGD cache.
+	builderCacheRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cel_builder_cache_requests_total",
+			Help: "Total number of builder cache requests by cache and result.",
+		},
+		[]string{"cache", "result"},
+	)
 
-	builderCacheHitsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "cel_cache_builder_hits_total",
-			Help: "Total number of builder cache hits",
-		},
-		[]string{"cache_type"},
-	)
-	builderCacheMissesTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "cel_cache_builder_misses_total",
-			Help: "Total number of builder cache misses",
-		},
-		[]string{"cache_type"},
-	)
-	builderCacheSize = prometheus.NewGaugeVec(
+	builderCacheEntries = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "cel_cache_builder_size",
-			Help: "Current number of entries in the builder cache",
+			Name: "cel_builder_cache_entries",
+			Help: "Current number of entries stored in each builder cache.",
 		},
-		[]string{"cache_type"},
+		[]string{"cache"},
 	)
 
-	// SessionCache metrics — short-lived, per-RGD-build cache.
+	builderCacheFillDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "cel_builder_cache_fill_duration_seconds",
+			Help:    "Duration spent computing a builder cache entry on cache miss.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"cache"},
+	)
 
 	sessionCacheHitsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -70,11 +78,23 @@ var (
 
 func init() {
 	metrics.Registry.MustRegister(
-		builderCacheHitsTotal,
-		builderCacheMissesTotal,
-		builderCacheSize,
+		builderCacheRequestsTotal,
+		builderCacheEntries,
+		builderCacheFillDuration,
 		sessionCacheHitsTotal,
 		sessionCacheMissesTotal,
 		sessionCacheASTReuseTotal,
 	)
+}
+
+func recordBuilderCacheHit(cacheName string) {
+	builderCacheRequestsTotal.WithLabelValues(cacheName, "hit").Inc()
+}
+
+func recordBuilderCacheMiss(cacheName string) {
+	builderCacheRequestsTotal.WithLabelValues(cacheName, "miss").Inc()
+}
+
+func recordBuilderCacheError(cacheName string) {
+	builderCacheRequestsTotal.WithLabelValues(cacheName, "error").Inc()
 }

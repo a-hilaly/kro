@@ -17,6 +17,7 @@ package client
 import (
 	"fmt"
 	"net/http"
+	"sync/atomic"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -62,9 +63,13 @@ type Set struct {
 	dynamic         *dynamic.DynamicClient
 	metadata        metadata.Interface
 	apiExtensionsV1 *apiextensionsv1.ApiextensionsV1Client
-	// restMapper is a REST mapper for the Kubernetes API server
-	restMapper meta.RESTMapper
-	httpClient *http.Client
+	restMapper      meta.RESTMapper
+	httpClient      *http.Client
+
+	// dynamicPool round-robins across multiple dynamic clients, each with
+	// its own HTTP transport, to reduce HTTP/2 stream contention.
+	dynamicPool []dynamic.Interface
+	dynamicNext atomic.Uint64
 }
 
 var _ SetInterface = (*Set)(nil)
@@ -75,6 +80,10 @@ type Config struct {
 	ImpersonateUser string
 	QPS             float32
 	Burst           int
+	// DynamicClientPoolSize sets the number of independent dynamic clients.
+	// Each gets its own HTTP transport to reduce HTTP/2 stream contention.
+	// Default 1 (no pooling).
+	DynamicClientPoolSize int
 }
 
 // NewSet creates a new client Set with the given config
@@ -105,8 +114,13 @@ func NewSet(cfg Config) (*Set, error) {
 	}
 	config.UserAgent = fmt.Sprintf("kro/%s", version.GetVersionInfo().GitVersion)
 
+	poolSize := cfg.DynamicClientPoolSize
+	if poolSize < 1 {
+		poolSize = 1
+	}
+
 	c := &Set{config: config}
-	if err := c.init(); err != nil {
+	if err := c.initWithPoolSize(poolSize); err != nil {
 		return nil, err
 	}
 
@@ -114,6 +128,10 @@ func NewSet(cfg Config) (*Set, error) {
 }
 
 func (c *Set) init() error {
+	return c.initWithPoolSize(1)
+}
+
+func (c *Set) initWithPoolSize(poolSize int) error {
 	var err error
 
 	// share http client between all k8s clients
@@ -147,6 +165,22 @@ func (c *Set) init() error {
 		return err
 	}
 
+	// Build dynamic client pool — each with its own HTTP transport.
+	if poolSize > 1 {
+		c.dynamicPool = make([]dynamic.Interface, poolSize)
+		for i := 0; i < poolSize; i++ {
+			poolHTTP, err := rest.HTTPClientFor(c.config)
+			if err != nil {
+				return fmt.Errorf("failed to create HTTP client for pool[%d]: %w", i, err)
+			}
+			dc, err := dynamic.NewForConfigAndClient(c.config, poolHTTP)
+			if err != nil {
+				return fmt.Errorf("failed to create dynamic client for pool[%d]: %w", i, err)
+			}
+			c.dynamicPool[i] = dc
+		}
+	}
+
 	return nil
 }
 
@@ -164,8 +198,14 @@ func (c *Set) Metadata() metadata.Interface {
 	return c.metadata
 }
 
-// Dynamic returns the dynamic client
+// Dynamic returns a dynamic client. When a pool is configured, it
+// round-robins across independent HTTP connections to reduce HTTP/2
+// stream contention.
 func (c *Set) Dynamic() dynamic.Interface {
+	if len(c.dynamicPool) > 0 {
+		i := c.dynamicNext.Add(1)
+		return c.dynamicPool[i%uint64(len(c.dynamicPool))]
+	}
 	return c.dynamic
 }
 

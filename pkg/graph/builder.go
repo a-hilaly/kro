@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/google/cel-go/cel"
 	"golang.org/x/exp/maps"
@@ -101,6 +102,9 @@ type Builder struct {
 	// environments, field type maps) scoped to this Builder instance.
 	// Long-lived across reconciles for cross-RGD cache hits.
 	celCache *celcache.BuilderCache
+	// instanceSchemas interns the schema variable used for typed CEL validation
+	// so identical RGD instance schemas can reuse the same typed environment.
+	instanceSchemas sync.Map // key: string, value: *spec.Schema
 }
 
 // RGDConfig holds RGD runtime configuration parameters.
@@ -256,6 +260,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	if err != nil {
 		return nil, fmt.Errorf("failed to get schema without status: %w", err)
 	}
+	schemaWithoutStatus = b.internInstanceSchema(rgd.Spec.Schema, schemaWithoutStatus)
 	celSchemas[SchemaVarName] = schemaWithoutStatus
 
 	// Create a single typed CEL environment with all schemas for compilation.
@@ -269,7 +274,7 @@ func (b *Builder) NewResourceGraphDefinition(originalCR *v1alpha1.ResourceGraphD
 	// Session cache for per-build CEL artifacts (programs, ASTs, extended envs).
 	// Created fresh per build so RGD-specific artifacts don't accumulate on
 	// the long-lived Builder.
-	sessionCache := celcache.NewSessionCache()
+	sessionCache := celcache.NewSessionCacheWithBuilder(b.celCache)
 
 	// Validate and compile all resource CEL expressions.
 	for id, node := range nodes {
@@ -1002,29 +1007,38 @@ func getCelTypeFromSchema(builderCache *celcache.BuilderCache, schema *spec.Sche
 }
 
 // lookupSchemaAtField resolves a single field name within a schema.
-func lookupSchemaAtField(schema *spec.Schema, field string) *spec.Schema {
-	if schema == nil || field == "" {
-		return schema
+func lookupSchemaAtField(openAPISchema *spec.Schema, field string) *spec.Schema {
+	if openAPISchema == nil || field == "" {
+		return openAPISchema
 	}
 
-	if prop, ok := schema.Properties[field]; ok {
-		return &prop
+	if child := schema.LookupFieldSchema(openAPISchema, field); child != nil {
+		return child
 	}
 
-	if schema.AdditionalProperties != nil {
-		if schema.AdditionalProperties.Schema != nil {
-			return schema.AdditionalProperties.Schema
-		}
-		if schema.AdditionalProperties.Allows {
-			return &spec.Schema{}
-		}
+	if child := schema.LookupAdditionalPropertiesSchema(openAPISchema); child != nil {
+		return child
 	}
 
-	if schema.Items != nil && schema.Items.Schema != nil {
-		return lookupSchemaAtField(schema.Items.Schema, field)
+	if openAPISchema.Items != nil && openAPISchema.Items.Schema != nil {
+		return lookupSchemaAtField(openAPISchema.Items.Schema, field)
 	}
 
 	return nil
+}
+
+func (b *Builder) internInstanceSchema(rgSchema *v1alpha1.Schema, schemaWithoutStatus *spec.Schema) *spec.Schema {
+	if rgSchema == nil || schemaWithoutStatus == nil {
+		return schemaWithoutStatus
+	}
+
+	key := string(rgSchema.Spec.Raw) + "\x00" + string(rgSchema.Types.Raw)
+	if cached, ok := b.instanceSchemas.Load(key); ok {
+		return cached.(*spec.Schema)
+	}
+
+	actual, _ := b.instanceSchemas.LoadOrStore(key, schemaWithoutStatus)
+	return actual.(*spec.Schema)
 }
 
 // validateAndCompileNode validates and compiles all CEL expressions for a single node:

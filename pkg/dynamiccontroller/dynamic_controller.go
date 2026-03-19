@@ -182,7 +182,18 @@ func NewDynamicController(
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedMaxOfRateLimiter(
 			workqueue.NewTypedItemExponentialFailureRateLimiter[ObjectIdentifiers](config.MinRetryDelay, config.MaxRetryDelay),
 			&workqueue.TypedBucketRateLimiter[ObjectIdentifiers]{Limiter: rate.NewLimiter(rate.Limit(config.RateLimit), config.BurstLimit)},
-		), workqueue.TypedRateLimitingQueueConfig[ObjectIdentifiers]{Name: "dynamic-controller-queue"}),
+		), workqueue.TypedRateLimitingQueueConfig[ObjectIdentifiers]{
+			Name: "dynamic-controller-queue",
+			DelayingQueue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[ObjectIdentifiers]{
+				Name: "dynamic-controller-queue",
+				Queue: workqueue.NewTypedWithConfig(workqueue.TypedQueueConfig[ObjectIdentifiers]{
+					Name: "dynamic-controller-queue",
+					Queue: NewFairQueue(func(oi ObjectIdentifiers) string {
+						return oi.GVR.String()
+					}),
+				}),
+			}),
+		}),
 	}
 
 	// WatchManager routes all informer events through the coordinator.
@@ -199,6 +210,8 @@ func (dc *DynamicController) Start(ctx context.Context) error {
 	if !dc.ctx.CompareAndSwap(nil, &ctx) {
 		return fmt.Errorf("already running")
 	}
+
+	dc.refreshStateMetrics()
 
 	defer utilruntime.HandleCrash()
 
@@ -358,10 +371,14 @@ func (dc *DynamicController) Register(
 	instanceHandler Handler,
 ) error {
 	dc.mu.Lock()
-	defer dc.mu.Unlock()
+	defer func() {
+		dc.refreshStateMetricsLocked()
+		dc.mu.Unlock()
+	}()
 
 	ctx := dc.ctx.Load()
 	if ctx == nil {
+		registerFailuresTotal.Inc()
 		return fmt.Errorf("dynamic controller not started")
 	}
 
@@ -373,6 +390,7 @@ func (dc *DynamicController) Register(
 		// Retain the shared informer for the parent and wait for cache sync.
 		if err := dc.watches.EnsureParentWatch(parent); err != nil {
 			dc.handlers.Delete(parent)
+			registerFailuresTotal.Inc()
 			return fmt.Errorf("add parent handler %s: %w", parent, err)
 		}
 
@@ -383,6 +401,8 @@ func (dc *DynamicController) Register(
 				dc.watches.StopWatch(parent)
 			}
 			dc.handlers.Delete(parent)
+			registerFailuresTotal.Inc()
+			registerRollbackTotal.Inc()
 			return fmt.Errorf("add parent handler %s: informer not found after EnsureWatch", parent)
 		}
 
@@ -405,14 +425,17 @@ func (dc *DynamicController) Register(
 				dc.watches.StopWatch(parent)
 			}
 			dc.handlers.Delete(parent)
+			registerFailuresTotal.Inc()
+			registerRollbackTotal.Inc()
 			return fmt.Errorf("add parent handler %s: %w", parent, err)
 		}
 		dc.parentWatches[parent] = reg
 
-		gvrCount.Inc()
+		registerTotal.Inc()
 		handlerAttachTotal.WithLabelValues("parent").Inc()
-		handlerCount.WithLabelValues("parent").Inc()
 		dc.log.V(1).Info("Attached parent watch", "gvr", parent)
+	} else {
+		registerTotal.Inc()
 	}
 
 	// Enqueue existing instances from parent cache.
@@ -454,19 +477,29 @@ func (dc *DynamicController) enqueueFromInformer(parentGVR schema.GroupVersionRe
 // Deregister removes a parent GVR handler and cleans up coordinator state.
 func (dc *DynamicController) Deregister(_ context.Context, parent schema.GroupVersionResource) error {
 	dc.mu.Lock()
-	defer dc.mu.Unlock()
+	defer func() {
+		dc.refreshStateMetricsLocked()
+		dc.mu.Unlock()
+	}()
 
 	gvrKey := keyFromGVR(parent)
+	_, hadHandler := dc.handlers.Load(parent)
+	removedParentWatch := false
 
 	// Clean up coordinator state for all instances of this parent.
 	dc.coordinator.RemoveParentGVR(parent)
 
 	// Remove parent event handler registration from the informer.
 	if reg, exists := dc.parentWatches[parent]; exists {
+		removedParentWatch = true
 		if inf := dc.watches.GetInformer(parent); inf != nil {
 			if err := inf.RemoveEventHandler(reg); err != nil {
+				deregisterFailuresTotal.Inc()
 				dc.log.Error(err, "failed to remove parent event handler", "parent", gvrKey)
 			}
+		} else {
+			deregisterFailuresTotal.Inc()
+			dc.log.Info("parent informer missing during deregistration", "parent", gvrKey)
 		}
 		delete(dc.parentWatches, parent)
 
@@ -477,13 +510,14 @@ func (dc *DynamicController) Deregister(_ context.Context, parent schema.GroupVe
 			dc.watches.StopWatch(parent)
 		}
 
-		gvrCount.Dec()
 		handlerDetachTotal.WithLabelValues("parent").Inc()
-		handlerCount.WithLabelValues("parent").Dec()
 		dc.log.V(1).Info("Detached parent watch", "gvr", parent)
 	}
 
 	dc.handlers.Delete(parent)
+	if hadHandler || removedParentWatch {
+		deregisterTotal.Inc()
+	}
 
 	dc.log.V(1).Info("Successfully unregistered GVR", "gvr", gvrKey)
 	return nil
@@ -493,6 +527,9 @@ func (dc *DynamicController) gracefulShutdown() error {
 	dc.log.Info("Starting graceful shutdown")
 
 	dc.watches.Shutdown()
+	watchCount.Set(0)
+	instanceWatchCount.Reset()
+	watchRequestCount.Reset()
 
 	queueShutdownDone := make(chan struct{})
 	go func() {
@@ -511,10 +548,51 @@ func (dc *DynamicController) gracefulShutdown() error {
 
 	select {
 	case <-queueShutdownDone:
+		dc.mu.Lock()
+		dc.parentWatches = make(map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration)
+		dc.mu.Unlock()
+		dc.refreshStateMetrics()
+		queueLength.Set(0)
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("timeout waiting for queue to shutdown: %w", ctx.Err())
 	}
+}
+
+func (dc *DynamicController) refreshStateMetrics() {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	dc.refreshStateMetricsLocked()
+}
+
+func (dc *DynamicController) refreshStateMetricsLocked() {
+	registered := len(dc.parentWatches)
+	stale := 0
+	seen := make(map[schema.GroupVersionResource]struct{}, len(dc.parentWatches))
+
+	for parent := range dc.parentWatches {
+		seen[parent] = struct{}{}
+		if _, ok := dc.handlers.Load(parent); !ok || dc.watches.GetInformer(parent) == nil {
+			stale++
+		}
+	}
+
+	dc.handlers.Range(func(key, _ any) bool {
+		parent, ok := key.(schema.GroupVersionResource)
+		if ok {
+			if _, found := seen[parent]; !found {
+				stale++
+			}
+		}
+		return true
+	})
+
+	gvrCount.Set(float64(registered))
+	registeredGVRs.Set(float64(registered))
+	staleRegistrations.Set(float64(stale))
+	handlerCount.WithLabelValues("parent").Set(float64(registered))
+	watchCount.Set(float64(dc.watches.ActiveWatchCount()))
+	queueLength.Set(float64(dc.queue.Len()))
 }
 
 // keyFromGVR returns a compact, allocation-efficient string key for the given

@@ -328,3 +328,21 @@ func TestReconcileManagedStateFailureMarksStatus(t *testing.T) {
 	stored := getStoredParentObject(t, raw)
 	assert.Equal(t, metav1.ConditionFalse, conditionByType(t, stored, InstanceManaged).Status)
 }
+
+func TestShouldCommitWatchSet(t *testing.T) {
+	t.Run("commit on success", func(t *testing.T) {
+		assert.True(t, shouldCommitWatchSet(nil))
+	})
+
+	t.Run("commit on immediate requeue", func(t *testing.T) {
+		assert.True(t, shouldCommitWatchSet(requeue.Needed(errors.New("retry"))))
+	})
+
+	t.Run("commit on delayed requeue", func(t *testing.T) {
+		assert.True(t, shouldCommitWatchSet(requeue.NeededAfter(errors.New("retry later"), 3*time.Second)))
+	})
+
+	t.Run("do not commit on hard failure", func(t *testing.T) {
+		assert.False(t, shouldCommitWatchSet(errors.New("boom")))
+	})
+}

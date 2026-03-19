@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-logr/logr"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -60,6 +61,7 @@ type ResourceGraphDefinitionReconciler struct {
 	rgBuilder               resourceGraphBuilder
 	dynamicController       *dynamiccontroller.DynamicController
 	maxConcurrentReconciles int
+	defaultRequeueDuration  time.Duration
 	rgdConfig               graph.RGDConfig
 }
 
@@ -69,6 +71,7 @@ func NewResourceGraphDefinitionReconciler(
 	dynamicController *dynamiccontroller.DynamicController,
 	builder *graph.Builder,
 	maxConcurrentReconciles int,
+	defaultRequeueDuration time.Duration,
 	rgdConfig graph.RGDConfig,
 ) *ResourceGraphDefinitionReconciler {
 	crdWrapper := clientSet.CRD(kroclient.CRDWrapperConfig{})
@@ -81,6 +84,7 @@ func NewResourceGraphDefinitionReconciler(
 		metadataLabeler:         metadata.NewKROMetaLabeler(),
 		rgBuilder:               builder,
 		maxConcurrentReconciles: maxConcurrentReconciles,
+		defaultRequeueDuration:  defaultRequeueDuration,
 		rgdConfig:               rgdConfig,
 	}
 }
@@ -213,11 +217,25 @@ func (r *ResourceGraphDefinitionReconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	topologicalOrder, resourcesInformation, reconcileErr := r.reconcileResourceGraphDefinition(ctx, o)
+	topologicalOrder, resourcesInformation, registered, reconcileErr := r.reconcileResourceGraphDefinition(ctx, o)
 
 	if err := r.updateStatus(ctx, o, topologicalOrder, resourcesInformation); err != nil {
+		if registered {
+			dynamiccontroller.RecordReconcileFailureAfterRegister(statusUpdateFailureReason(err))
+		}
 		reconcileErr = errors.Join(reconcileErr, err)
 	}
 
 	return ctrl.Result{}, reconcileErr
+}
+
+func statusUpdateFailureReason(err error) string {
+	switch {
+	case apierrors.IsNotFound(err):
+		return "not_found"
+	case apierrors.IsConflict(err):
+		return "conflict"
+	default:
+		return "other"
+	}
 }

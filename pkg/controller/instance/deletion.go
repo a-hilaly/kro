@@ -56,10 +56,12 @@ func (c *Controller) planNodesForDeletion(
 	rcx *ReconcileContext,
 ) (*runtime.Node, error) {
 	var deletionNode *runtime.Node
+	nodes := rcx.Runtime.Nodes()
+	plannedNodesTotal.Add(float64(len(nodes)))
 
 	// Loop through nodes in topological order and try to observe their state.
 	// stop at the first node that can't be observed (e.g. due to pending data).
-	for _, node := range rcx.Runtime.Nodes() {
+	for _, node := range nodes {
 		rid := node.Spec.Meta.ID
 		nodeMeta := node.Spec.Meta
 
@@ -121,6 +123,10 @@ func (c *Controller) planNodesForDeletion(
 				state.SetDeleted()
 				continue
 			}
+			// Watch collection items so we get notified when they're deleted.
+			for _, item := range items {
+				requestWatch(rcx, rid, nodeMeta.GVR, item.GetName(), item.GetNamespace())
+			}
 			node.SetObserved(items)
 			state.SetInProgress()
 			deletionNode = node
@@ -129,6 +135,8 @@ func (c *Controller) planNodesForDeletion(
 			// Single resources delete by identity; GET the object to mark observed and
 			// allow DeleteTargets to return the correct target.
 			obj := desired[0]
+			// Watch BEFORE GET to avoid event gaps.
+			requestWatch(rcx, rid, nodeMeta.GVR, obj.GetName(), obj.GetNamespace())
 			rc := resourceClientFor(rcx, nodeMeta, obj.GetNamespace())
 			observed, err := rc.Get(rcx.Ctx, obj.GetName(), metav1.GetOptions{})
 			if err != nil {

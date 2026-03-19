@@ -17,6 +17,7 @@ package instance
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,6 +77,7 @@ func (c *Controller) reconcileNodes(rcx *ReconcileContext) error {
 		}
 		lastUnresolvedErr = err
 	}
+	desiredObjectsTotal.Add(float64(len(resources)))
 	prune := lastUnresolvedErr == nil
 
 	// ---------------------------------------------------------
@@ -93,7 +95,14 @@ func (c *Controller) reconcileNodes(rcx *ReconcileContext) error {
 	// ---------------------------------------------------------
 	// 3. Apply desired resources
 	// ---------------------------------------------------------
+	applyStart := time.Now()
 	result, batchMeta, err := applier.Apply(rcx.Ctx, resources, applyset.ApplyMode{})
+	applysetApplyDuration.Observe(time.Since(applyStart).Seconds())
+	if result != nil {
+		applysetApplyTotal.Add(float64(len(result.Applied)))
+	} else {
+		applysetApplyTotal.Add(float64(len(resources)))
+	}
 	if err != nil {
 		return rcx.delayedRequeue(fmt.Errorf("apply failed: %w", err))
 	}
@@ -140,6 +149,10 @@ func (c *Controller) reconcileNodes(rcx *ReconcileContext) error {
 	rcx.StateManager.Update()
 
 	if lastUnresolvedErr != nil {
+		rcx.Log.V(10).Info("Requeueing due to unresolved resource dependency",
+			"error", lastUnresolvedErr,
+			"delay", rcx.Config.DefaultRequeueDuration,
+		)
 		return rcx.delayedRequeue(fmt.Errorf("waiting for unresolved resource: %w", lastUnresolvedErr))
 	}
 	if pruneNeedsRetry {
@@ -161,6 +174,7 @@ func (c *Controller) processNodes(
 	rcx *ReconcileContext,
 ) ([]applyset.Resource, error) {
 	nodes := rcx.Runtime.Nodes()
+	plannedNodesTotal.Add(float64(len(nodes)))
 
 	var resources []applyset.Resource
 
@@ -190,13 +204,16 @@ func (c *Controller) pruneOrphans(
 	batchMeta applyset.Metadata,
 ) (bool, bool, error) {
 	pruneScope := supersetPatch.PruneScope()
+	pruneStart := time.Now()
 	pruneResult, err := applier.Prune(rcx.Ctx, applyset.PruneOptions{
 		KeepUIDs: result.ObservedUIDs(),
 		Scope:    pruneScope,
 	})
+	applysetPruneDuration.Observe(time.Since(pruneStart).Seconds())
 	if err != nil {
 		return false, false, rcx.delayedRequeue(fmt.Errorf("prune failed: %w", err))
 	}
+	applysetPruneTotal.Add(float64(len(pruneResult.Pruned)))
 
 	// Keep superset metadata and retry prune on UID conflicts.
 	if pruneResult.HasConflicts() {
@@ -322,6 +339,24 @@ func (c *Controller) processRegularNode(
 	if err != nil {
 		state.SetError(fmt.Errorf("failed to get current state for %s/%s: %w", desired.GetNamespace(), desired.GetName(), err))
 		return nil, state.Err
+	}
+
+	if current == nil {
+		rcx.Log.V(10).Info("No current object found for node",
+			"id", id,
+			"gvr", nodeMeta.GVR.String(),
+			"namespace", desired.GetNamespace(),
+			"name", desired.GetName(),
+		)
+	} else {
+		rcx.Log.V(10).Info("Loaded current object for node",
+			"id", id,
+			"gvr", nodeMeta.GVR.String(),
+			"namespace", current.GetNamespace(),
+			"name", current.GetName(),
+			"resourceVersion", current.GetResourceVersion(),
+			"generation", current.GetGeneration(),
+		)
 	}
 
 	if current != nil && current.GetDeletionTimestamp() != nil {
@@ -633,9 +668,18 @@ func (c *Controller) processApplyResults(
 					continue
 				}
 				if item.Observed != nil {
+					rcx.Log.V(10).Info("Apply observed object for node",
+						"id", nodeID,
+						"namespace", item.Observed.GetNamespace(),
+						"name", item.Observed.GetName(),
+						"resourceVersion", item.Observed.GetResourceVersion(),
+						"generation", item.Observed.GetGeneration(),
+					)
 					node.SetObserved([]*unstructured.Unstructured{item.Observed})
+				} else {
+					rcx.Log.V(10).Info("Apply result had no observed object for node", "id", nodeID)
 				}
-				setStateFromReadiness(node, state)
+				setStateFromReadiness(rcx, node, state)
 			}
 		case graph.NodeTypeExternal, graph.NodeTypeExternalCollection:
 			// External refs/collections handled before applyset.
@@ -658,7 +702,7 @@ func (c *Controller) processApplyResults(
 // updateCollectionFromApplyResults maps per-item apply results back to the
 // collection node and refreshes the observed list in runtime.
 func (c *Controller) updateCollectionFromApplyResults(
-	_ *ReconcileContext,
+	rcx *ReconcileContext,
 	node *runtime.Node,
 	state *NodeState,
 	byID map[string]applyset.ApplyResultItem,
@@ -699,21 +743,35 @@ func (c *Controller) updateCollectionFromApplyResults(
 	}
 
 	node.SetObserved(observedItems)
-	setStateFromReadiness(node, state)
+	setStateFromReadiness(rcx, node, state)
 	return nil
 }
 
 // setStateFromReadiness evaluates node readiness and updates the node state
 // to synced, waiting, or error.
-func setStateFromReadiness(node *runtime.Node, state *NodeState) {
+func setStateFromReadiness(rcx *ReconcileContext, node *runtime.Node, state *NodeState) {
 	if err := node.CheckReadiness(); err != nil {
 		if errors.Is(err, runtime.ErrWaitingForReadiness) {
+			rcx.Log.V(10).Info("Node is waiting for readiness",
+				"id", node.Spec.Meta.ID,
+				"type", node.Spec.Meta.Type,
+				"error", err,
+			)
 			state.SetWaitingForReadiness(fmt.Errorf("waiting for node %q: %w", node.Spec.Meta.ID, err))
 			return
 		}
+		rcx.Log.V(10).Info("Node readiness evaluation failed",
+			"id", node.Spec.Meta.ID,
+			"type", node.Spec.Meta.Type,
+			"error", err,
+		)
 		state.SetError(err)
 		return
 	}
+	rcx.Log.V(10).Info("Node is ready",
+		"id", node.Spec.Meta.ID,
+		"type", node.Spec.Meta.Type,
+	)
 	state.SetReady()
 }
 
@@ -809,6 +867,12 @@ func (c *Controller) processExternalCollectionNode(
 
 // requestWatch registers a scalar watch request with the coordinator.
 func requestWatch(rcx *ReconcileContext, nodeID string, gvr schema.GroupVersionResource, name, namespace string) {
+	rcx.Log.V(10).Info("Registering scalar watch request",
+		"nodeID", nodeID,
+		"gvr", gvr.String(),
+		"namespace", namespace,
+		"name", name,
+	)
 	if err := rcx.Watcher.Watch(dynamiccontroller.WatchRequest{
 		NodeID:    nodeID,
 		GVR:       gvr,
@@ -821,6 +885,12 @@ func requestWatch(rcx *ReconcileContext, nodeID string, gvr schema.GroupVersionR
 
 // requestCollectionWatch registers a collection (selector-based) watch request.
 func requestCollectionWatch(rcx *ReconcileContext, nodeID string, gvr schema.GroupVersionResource, namespace string, selector labels.Selector) {
+	rcx.Log.V(10).Info("Registering collection watch request",
+		"nodeID", nodeID,
+		"gvr", gvr.String(),
+		"namespace", namespace,
+		"selector", selector.String(),
+	)
 	if err := rcx.Watcher.Watch(dynamiccontroller.WatchRequest{
 		NodeID:    nodeID,
 		GVR:       gvr,
