@@ -19,10 +19,40 @@ import (
 
 const defaultOwnedCleanupWorkers = 16
 
+type cleanupTargetScope int
+
+const (
+	cleanupTargetScopeChildInstances cleanupTargetScope = iota
+	cleanupTargetScopeOwnedLeaves
+)
+
 type cleanupTarget struct {
 	gvr           schema.GroupVersionResource
 	labelSelector string
 	priority      int
+}
+
+func DeleteChildInstanceResourcesByPrefix(
+	ctx context.Context,
+	discoveryClient discovery.DiscoveryInterface,
+	client dynamic.Interface,
+	namespace string,
+	instancePrefix string,
+	deleteWorkers int,
+	targetWorkers int,
+	skipGVRs ...schema.GroupVersionResource,
+) (*Result, error) {
+	return deleteResourcesByInstancePrefix(
+		ctx,
+		discoveryClient,
+		client,
+		namespace,
+		instancePrefix,
+		deleteWorkers,
+		targetWorkers,
+		cleanupTargetScopeChildInstances,
+		skipGVRs...,
+	)
 }
 
 func DeleteOwnedResourcesByInstancePrefix(
@@ -31,16 +61,37 @@ func DeleteOwnedResourcesByInstancePrefix(
 	client dynamic.Interface,
 	namespace string,
 	instancePrefix string,
-	batchSize int,
+	deleteWorkers int,
+	targetWorkers int,
+	skipGVRs ...schema.GroupVersionResource,
+) (*Result, error) {
+	return deleteResourcesByInstancePrefix(
+		ctx,
+		discoveryClient,
+		client,
+		namespace,
+		instancePrefix,
+		deleteWorkers,
+		targetWorkers,
+		cleanupTargetScopeOwnedLeaves,
+		skipGVRs...,
+	)
+}
+
+func deleteResourcesByInstancePrefix(
+	ctx context.Context,
+	discoveryClient discovery.DiscoveryInterface,
+	client dynamic.Interface,
+	namespace string,
+	instancePrefix string,
+	deleteWorkers int,
+	targetWorkers int,
+	scope cleanupTargetScope,
 	skipGVRs ...schema.GroupVersionResource,
 ) (*Result, error) {
 	resourceLists, err := discoveryClient.ServerPreferredNamespacedResources()
 	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
 		return nil, fmt.Errorf("discover namespaced resources: %w", err)
-	}
-
-	if batchSize <= 0 {
-		batchSize = 50
 	}
 
 	skipSet := make(map[schema.GroupVersionResource]struct{}, len(skipGVRs))
@@ -50,8 +101,8 @@ func DeleteOwnedResourcesByInstancePrefix(
 
 	result := &Result{}
 	start := time.Now()
-	targets := buildCleanupTargets(resourceLists, skipSet)
-	if err := cleanupTargets(ctx, client, namespace, instancePrefix, batchSize, targets, result); err != nil {
+	targets := buildCleanupTargets(resourceLists, skipSet, scope)
+	if err := cleanupTargets(ctx, client, namespace, instancePrefix, deleteWorkers, targetWorkers, targets, result); err != nil {
 		return nil, err
 	}
 
@@ -62,7 +113,11 @@ func DeleteOwnedResourcesByInstancePrefix(
 	return result, nil
 }
 
-func buildCleanupTargets(resourceLists []*metav1.APIResourceList, skipSet map[schema.GroupVersionResource]struct{}) []cleanupTarget {
+func buildCleanupTargets(
+	resourceLists []*metav1.APIResourceList,
+	skipSet map[schema.GroupVersionResource]struct{},
+	scope cleanupTargetScope,
+) []cleanupTarget {
 	targets := make([]cleanupTarget, 0, len(resourceLists)*4)
 	ownedSelector := fmt.Sprintf("%s=true", krometadata.OwnedLabel)
 
@@ -90,6 +145,16 @@ func buildCleanupTargets(resourceLists []*metav1.APIResourceList, skipSet map[sc
 			}
 			if gvr.Group == "kro.run" && gvr.Resource == "resourcegraphdefinitions" {
 				continue
+			}
+			switch scope {
+			case cleanupTargetScopeChildInstances:
+				if gvr.Group != "kro.run" {
+					continue
+				}
+			case cleanupTargetScopeOwnedLeaves:
+				if gvr.Group == "kro.run" {
+					continue
+				}
 			}
 
 			target := cleanupTarget{
@@ -147,7 +212,8 @@ func cleanupTargets(
 	client dynamic.Interface,
 	namespace string,
 	instancePrefix string,
-	batchSize int,
+	deleteWorkers int,
+	targetWorkers int,
 	targets []cleanupTarget,
 	result *Result,
 ) error {
@@ -155,7 +221,10 @@ func cleanupTargets(
 		return nil
 	}
 
-	workerCount := defaultOwnedCleanupWorkers
+	workerCount := targetWorkers
+	if workerCount <= 0 {
+		workerCount = defaultOwnedCleanupWorkers
+	}
 	if len(targets) < workerCount {
 		workerCount = len(targets)
 	}
@@ -175,7 +244,7 @@ func cleanupTargets(
 		go func() {
 			defer wg.Done()
 			for target := range targetCh {
-				local, err := cleanupTargetMatches(ctx, client, namespace, instancePrefix, batchSize, target)
+				local, err := cleanupTargetMatches(ctx, client, namespace, instancePrefix, deleteWorkers, target)
 				if err != nil {
 					select {
 					case errCh <- err:
@@ -227,7 +296,7 @@ func cleanupTargetMatches(
 	client dynamic.Interface,
 	namespace string,
 	instancePrefix string,
-	batchSize int,
+	deleteWorkers int,
 	target cleanupTarget,
 ) (*Result, error) {
 	list, err := listCleanupTarget(ctx, client, namespace, target)
@@ -246,9 +315,7 @@ func cleanupTargetMatches(
 	}
 
 	local := &Result{Total: len(filtered)}
-	if err := deleteObjects(ctx, client, target.gvr, namespace, filtered, batchSize, local); err != nil {
-		return nil, err
-	}
+	deleteObjectsConcurrently(ctx, client, target.gvr, namespace, filtered, deleteWorkers, true, local)
 	return local, nil
 }
 
@@ -274,68 +341,18 @@ func filterOwnedCleanupMatches(items []unstructured.Unstructured, instancePrefix
 	filtered := make([]unstructured.Unstructured, 0, len(items))
 	for _, item := range items {
 		labels := item.GetLabels()
-		if strings.HasPrefix(labels[krometadata.InstanceLabel], prefix) || strings.HasPrefix(item.GetName(), prefix) {
+		if matchesCleanupPrefix(labels[krometadata.InstanceLabel], prefix) || matchesCleanupPrefix(item.GetName(), prefix) {
 			filtered = append(filtered, item)
 		}
 	}
 	return filtered
 }
 
-func deleteObjects(
-	ctx context.Context,
-	client dynamic.Interface,
-	gvr schema.GroupVersionResource,
-	namespace string,
-	items []unstructured.Unstructured,
-	batchSize int,
-	result *Result,
-) error {
-	var (
-		wg sync.WaitGroup
-		mu sync.Mutex
-	)
-
-	for i := 0; i < len(items); i += batchSize {
-		end := i + batchSize
-		if end > len(items) {
-			end = len(items)
-		}
-
-		for j := i; j < end; j++ {
-			item := items[j]
-			wg.Add(1)
-			go func(obj unstructured.Unstructured) {
-				defer wg.Done()
-
-				targetNamespace := namespace
-				if obj.GetNamespace() != "" {
-					targetNamespace = obj.GetNamespace()
-				}
-
-				var err error
-				if targetNamespace == "" {
-					err = client.Resource(gvr).Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
-				} else {
-					err = client.Resource(gvr).Namespace(targetNamespace).Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
-				}
-
-				mu.Lock()
-				defer mu.Unlock()
-				if err != nil && !apierrors.IsNotFound(err) {
-					result.Failed++
-					if len(result.Errors) < 10 {
-						result.Errors = append(result.Errors, fmt.Sprintf("delete %s %s: %v", gvr.String(), obj.GetName(), err))
-					}
-					return
-				}
-				result.Created++
-			}(item)
-		}
-
-		wg.Wait()
+func matchesCleanupPrefix(value string, prefix string) bool {
+	if value == "" || prefix == "" {
+		return false
 	}
-
-	return nil
+	return value == prefix || strings.HasPrefix(value, prefix+"-")
 }
 
 func supportsVerb(verbs []string, want string) bool {

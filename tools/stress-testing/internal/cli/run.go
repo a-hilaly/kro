@@ -27,6 +27,9 @@ func newRunCommand(root *RootOptions) *cobra.Command {
 		step              int
 		rate              int
 		complexity        string
+		circusDropMin     int
+		circusDropMax     int
+		circusSeed        int64
 		prefix            string
 		outputDir         string
 		observeInterval   time.Duration
@@ -65,6 +68,11 @@ func newRunCommand(root *RootOptions) *cobra.Command {
 			cfg, ok := stressutil.DefaultComplexities[complexity]
 			if !ok {
 				return fmt.Errorf("unknown complexity %q", complexity)
+			}
+			if cfg.Preset == "circus" {
+				cfg.DropMin = circusDropMin
+				cfg.DropMax = circusDropMax
+				cfg.Seed = circusSeed
 			}
 
 			if outputDir == "" {
@@ -311,7 +319,10 @@ func newRunCommand(root *RootOptions) *cobra.Command {
 	rgdScaleCmd.Flags().IntVar(&total, "total", 5000, "total RGDs to create")
 	rgdScaleCmd.Flags().IntVar(&step, "step", 1000, "RGD increment per stage")
 	rgdScaleCmd.Flags().IntVar(&rate, "rate", 25, "creation rate per second")
-	rgdScaleCmd.Flags().StringVar(&complexity, "complexity", "high", "RGD complexity: low, medium, high, deployments, or real")
+	rgdScaleCmd.Flags().StringVar(&complexity, "complexity", "high", "RGD complexity: low, medium, high, deployments, circus, feature-mix, or real")
+	rgdScaleCmd.Flags().IntVar(&circusDropMin, "circus-drop-min", 5, "minimum number of optional nodes to drop when complexity=circus")
+	rgdScaleCmd.Flags().IntVar(&circusDropMax, "circus-drop-max", 50, "maximum number of optional nodes to drop when complexity=circus")
+	rgdScaleCmd.Flags().Int64Var(&circusSeed, "circus-seed", 1, "deterministic seed used when complexity=circus")
 	rgdScaleCmd.Flags().StringVar(&prefix, "prefix", "rgdscale", "prefix for generated RGD names")
 	rgdScaleCmd.Flags().StringVar(&outputDir, "output-dir", "", "directory for report artifacts")
 	rgdScaleCmd.Flags().DurationVar(&observeInterval, "observe-interval", 10*time.Second, "Prometheus sampling interval")

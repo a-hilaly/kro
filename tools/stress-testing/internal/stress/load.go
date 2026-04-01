@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,6 +16,8 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 )
+
+const defaultDeleteWorkers = 50
 
 type Result struct {
 	Total      int           `json:"total"`
@@ -148,7 +151,7 @@ func DeleteResources(
 	gvr schema.GroupVersionResource,
 	namespace string,
 	labelSelector string,
-	batchSize int,
+	deleteWorkers int,
 ) (*Result, error) {
 	listOptions := metav1.ListOptions{LabelSelector: labelSelector}
 
@@ -171,28 +174,49 @@ func DeleteResources(
 		return result, nil
 	}
 
-	if batchSize <= 0 {
-		batchSize = 50
+	start := time.Now()
+	deleteObjectsConcurrently(ctx, client, gvr, namespace, list.Items, deleteWorkers, false, result)
+
+	result.Duration = time.Since(start)
+	if result.Duration > 0 {
+		result.Rate = float64(result.Created) / result.Duration.Seconds()
+	}
+	return result, nil
+}
+
+func deleteObjectsConcurrently(
+	ctx context.Context,
+	client dynamic.Interface,
+	gvr schema.GroupVersionResource,
+	namespace string,
+	items []unstructured.Unstructured,
+	maxConcurrency int,
+	ignoreNotFound bool,
+	result *Result,
+) {
+	if len(items) == 0 {
+		return
 	}
 
-	start := time.Now()
+	workerCount := maxConcurrency
+	if workerCount <= 0 {
+		workerCount = defaultDeleteWorkers
+	}
+	if workerCount > len(items) {
+		workerCount = len(items)
+	}
+
+	jobs := make(chan unstructured.Unstructured)
 	var (
 		wg sync.WaitGroup
 		mu sync.Mutex
 	)
 
-	for i := 0; i < len(list.Items); i += batchSize {
-		end := i + batchSize
-		if end > len(list.Items) {
-			end = len(list.Items)
-		}
-
-		for j := i; j < end; j++ {
-			item := list.Items[j]
-			wg.Add(1)
-			go func(obj unstructured.Unstructured) {
-				defer wg.Done()
-
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for obj := range jobs {
 				targetNamespace := namespace
 				if obj.GetNamespace() != "" {
 					targetNamespace = obj.GetNamespace()
@@ -206,26 +230,27 @@ func DeleteResources(
 				}
 
 				mu.Lock()
-				defer mu.Unlock()
-				if err != nil {
+				switch {
+				case err == nil:
+					result.Created++
+				case ignoreNotFound && apierrors.IsNotFound(err):
+					result.Created++
+				default:
 					result.Failed++
 					if len(result.Errors) < 10 {
 						result.Errors = append(result.Errors, err.Error())
 					}
-					return
 				}
-				result.Created++
-			}(item)
-		}
-
-		wg.Wait()
+				mu.Unlock()
+			}
+		}()
 	}
 
-	result.Duration = time.Since(start)
-	if result.Duration > 0 {
-		result.Rate = float64(result.Created) / result.Duration.Seconds()
+	for _, item := range items {
+		jobs <- item
 	}
-	return result, nil
+	close(jobs)
+	wg.Wait()
 }
 
 func ApplyResources(

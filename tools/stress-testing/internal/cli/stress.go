@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/kubernetes-sigs/kro/tools/stress-testing/internal/kube"
@@ -35,7 +37,12 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 	var (
 		total            int
 		rate             int
+		deleteWorkers    int
 		complexity       string
+		planComplexity   string
+		circusDropMin    int
+		circusDropMax    int
+		circusSeed       int64
 		prefix           string
 		waitActive       bool
 		waitTimeout      time.Duration
@@ -43,6 +50,7 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 		parentInstances  int
 		targetTotal      int
 		includeInstances bool
+		checkpointStep   int
 		outputDir        string
 		writeRender      bool
 		crdURLs          []string
@@ -70,6 +78,11 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 			cfg, ok := stressutil.DefaultComplexities[strings.ToLower(complexity)]
 			if !ok {
 				return fmt.Errorf("unknown complexity %q", complexity)
+			}
+			if cfg.Preset == "circus" {
+				cfg.DropMin = circusDropMin
+				cfg.DropMax = circusDropMax
+				cfg.Seed = circusSeed
 			}
 
 			ctx, stop := signalContext()
@@ -117,7 +130,10 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 
 	createCmd.Flags().IntVar(&total, "total", 100, "number of RGDs to create")
 	createCmd.Flags().IntVar(&rate, "rate", 10, "creation rate per second")
-	createCmd.Flags().StringVar(&complexity, "complexity", "medium", "workload complexity: low, medium, high, deployments, or real")
+	createCmd.Flags().StringVar(&complexity, "complexity", "medium", "workload complexity: low, medium, high, deployments, circus, feature-mix, or real")
+	createCmd.Flags().IntVar(&circusDropMin, "circus-drop-min", 5, "minimum number of optional nodes to drop when complexity=circus")
+	createCmd.Flags().IntVar(&circusDropMax, "circus-drop-max", 50, "maximum number of optional nodes to drop when complexity=circus")
+	createCmd.Flags().Int64Var(&circusSeed, "circus-seed", 1, "deterministic seed used when complexity=circus")
 	createCmd.Flags().StringVar(&prefix, "prefix", "krostress", "name prefix for generated resources")
 	createCmd.Flags().BoolVar(&waitActive, "wait-active", false, "wait for each RGD to report Active after creation")
 	createCmd.Flags().DurationVar(&waitTimeout, "wait-timeout", 5*time.Minute, "timeout when waiting for RGDs to become Active")
@@ -138,7 +154,7 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 
 			selector := stressutil.LabelSelector(prefix)
 			fmt.Printf("Deleting RGDs with selector %q...\n", selector)
-			result, err := stressutil.DeleteResources(context.Background(), clients.Dynamic, stressutil.RGDGVR, "", selector, 50)
+			result, err := stressutil.DeleteResources(context.Background(), clients.Dynamic, stressutil.RGDGVR, "", selector, deleteWorkers)
 			if err != nil {
 				return err
 			}
@@ -148,6 +164,7 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 	}
 
 	cleanupCmd.Flags().StringVar(&prefix, "prefix", "krostress", "resource prefix to target")
+	cleanupCmd.Flags().IntVar(&deleteWorkers, "delete-workers", 50, "maximum parallel delete requests for matched RGDs")
 
 	setupCmd := &cobra.Command{
 		Use:   "setup",
@@ -316,8 +333,71 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 
 	planCmd := &cobra.Command{
 		Use:   "plan",
-		Short: "Project hierarchy resource counts without creating anything",
+		Short: "Project hierarchy or synthetic RGD counts without creating anything",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(planComplexity) != "" {
+				cfg, ok := stressutil.DefaultComplexities[strings.ToLower(strings.TrimSpace(planComplexity))]
+				if !ok {
+					return fmt.Errorf("unknown complexity %q", planComplexity)
+				}
+				if cfg.Preset == "circus" {
+					cfg.DropMin = circusDropMin
+					cfg.DropMax = circusDropMax
+					cfg.Seed = circusSeed
+				}
+				if total < 0 {
+					return fmt.Errorf("total must be >= 0")
+				}
+				if checkpointStep < 0 {
+					return fmt.Errorf("checkpoint-step must be >= 0")
+				}
+
+				if checkpointStep > 0 {
+					checkpoints, err := stressutil.PlanSyntheticRGDCheckpoints(prefix, cfg, total, checkpointStep)
+					if err != nil {
+						return err
+					}
+					fmt.Printf("Synthetic complexity: %s\n", strings.ToLower(strings.TrimSpace(planComplexity)))
+					fmt.Printf("Prefix: %s\n", prefix)
+					fmt.Printf("RGDs planned: %d\n", total)
+					fmt.Printf("Checkpoint step: %d\n", checkpointStep)
+					fmt.Println("Checkpoint averages:")
+					for _, checkpoint := range checkpoints {
+						fmt.Printf("- %d RGDs: avg resources %.2f, avg status leaves %.2f, unique resource shapes %d, unique status shapes %d\n",
+							checkpoint.TotalRGDs,
+							checkpoint.AverageResources,
+							checkpoint.AverageStatusLeaves,
+							checkpoint.UniqueResourceShapes,
+							checkpoint.UniqueStatusShapes,
+						)
+					}
+					return nil
+				}
+
+				plan, err := stressutil.PlanSyntheticRGDs(prefix, cfg, total)
+				if err != nil {
+					return err
+				}
+
+				fmt.Printf("Synthetic complexity: %s\n", strings.ToLower(strings.TrimSpace(planComplexity)))
+				fmt.Printf("Prefix: %s\n", prefix)
+				fmt.Printf("RGDs planned: %d\n", plan.TotalRGDs)
+				fmt.Println("Per RGD resources:")
+				fmt.Printf("- total resources across RGDs: %d\n", plan.TotalResources)
+				fmt.Printf("- average resources per RGD: %.2f\n", plan.AverageResources)
+				fmt.Printf("- min resources: %d (index %d)\n", plan.MinResources, plan.MinResourcesIndex)
+				fmt.Printf("- max resources: %d (index %d)\n", plan.MaxResources, plan.MaxResourcesIndex)
+				fmt.Println("Status schema leaves:")
+				fmt.Printf("- total status leaves across RGDs: %d\n", plan.TotalStatusLeaves)
+				fmt.Printf("- average status leaves per RGD: %.2f\n", plan.AverageStatusLeaves)
+				fmt.Printf("- min status leaves: %d (index %d)\n", plan.MinStatusLeaves, plan.MinStatusLeavesIndex)
+				fmt.Printf("- max status leaves: %d (index %d)\n", plan.MaxStatusLeaves, plan.MaxStatusLeavesIndex)
+				fmt.Println("Shape variation:")
+				fmt.Printf("- unique resource shapes: %d\n", plan.UniqueResourceShapes)
+				fmt.Printf("- unique status shapes: %d\n", plan.UniqueStatusShapes)
+				return nil
+			}
+
 			profile, ok := stressutil.HierarchyByName(strings.ToLower(strings.TrimSpace(hierarchy)))
 			if !ok {
 				return fmt.Errorf("unknown hierarchy %q", hierarchy)
@@ -374,6 +454,13 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 	planCmd.Flags().IntVar(&parentInstances, "parent-instances", 0, "number of top-level parent instances to project")
 	planCmd.Flags().IntVar(&targetTotal, "target-total", 0, "desired total count to backsolve into parent instances")
 	planCmd.Flags().BoolVar(&includeInstances, "include-instances", false, "treat --target-total as total objects including instance CRs")
+	planCmd.Flags().StringVar(&planComplexity, "complexity", "", "synthetic RGD complexity to project instead of hierarchy: low, medium, high, deployments, circus, feature-mix, or real")
+	planCmd.Flags().IntVar(&total, "total", 0, "number of synthetic RGDs to project when --complexity is set")
+	planCmd.Flags().StringVar(&prefix, "prefix", "krostress", "name prefix for synthetic planning")
+	planCmd.Flags().IntVar(&checkpointStep, "checkpoint-step", 0, "emit cumulative synthetic projections every N RGDs from a single pass")
+	planCmd.Flags().IntVar(&circusDropMin, "circus-drop-min", 5, "minimum number of optional nodes to drop when --complexity=circus")
+	planCmd.Flags().IntVar(&circusDropMax, "circus-drop-max", 50, "maximum number of optional nodes to drop when --complexity=circus")
+	planCmd.Flags().Int64Var(&circusSeed, "circus-seed", 1, "deterministic seed used when --complexity=circus")
 
 	renderCmd := &cobra.Command{
 		Use:   "render",
@@ -425,16 +512,20 @@ func newStressRGDCommand(root *RootOptions) *cobra.Command {
 
 func newStressInstanceCommand(root *RootOptions) *cobra.Command {
 	var (
-		total               int
-		rate                int
-		rgdIndex            int
-		startIndex          int
-		hierarchy           string
-		namespace           string
-		prefix              string
-		waitRGD             bool
-		waitTimeout         time.Duration
+		total                int
+		rate                 int
+		rgdIndex             int
+		startIndex           int
+		instanceName         string
+		deleteWorkers        int
+		ownedCleanupWorkers  int
+		hierarchy            string
+		namespace            string
+		prefix               string
+		waitRGD              bool
+		waitTimeout          time.Duration
 		cleanupOwnedChildren bool
+		sweepOnly            bool
 	)
 
 	command := &cobra.Command{
@@ -554,13 +645,91 @@ func newStressInstanceCommand(root *RootOptions) *cobra.Command {
 				}
 			}
 
-			fmt.Printf("Deleting instances of %s with selector %q in namespace %s...\n", targetName, selector, namespace)
-			result, err := stressutil.DeleteResources(context.Background(), clients.Dynamic, targetGVR, namespace, selector, 50)
-			if err != nil {
-				return err
+			if sweepOnly && !cleanupOwnedChildren {
+				return fmt.Errorf("--sweep-only requires --cleanup-owned-children")
 			}
-			printDeleteResult("instances", result)
+
+			if strings.TrimSpace(instanceName) != "" {
+				if !sweepOnly {
+					fmt.Printf("Deleting instance %s/%s of %s...\n", namespace, instanceName, targetName)
+					deleteErr := clients.Dynamic.Resource(targetGVR).Namespace(namespace).Delete(context.Background(), instanceName, metav1.DeleteOptions{})
+					result := &stressutil.Result{Total: 1}
+					switch {
+					case deleteErr == nil:
+						result.Created = 1
+					case apierrors.IsNotFound(deleteErr):
+						result.Failed = 1
+						result.Errors = append(result.Errors, deleteErr.Error())
+					default:
+						return deleteErr
+					}
+					printDeleteResult("instances", result)
+				} else {
+					fmt.Printf("Sweeping child resources for instance %q in namespace %s without deleting the root...\n", instanceName, namespace)
+				}
+				if cleanupOwnedChildren {
+					fmt.Printf("Deleting child instance resources for instance %q in namespace %s...\n", instanceName, namespace)
+					childResult, err := stressutil.DeleteChildInstanceResourcesByPrefix(
+						context.Background(),
+						clients.Discovery,
+						clients.Dynamic,
+						namespace,
+						instanceName,
+						deleteWorkers,
+						ownedCleanupWorkers,
+						targetGVR,
+					)
+					if err != nil {
+						return err
+					}
+					printDeleteResult("child instance resources", childResult)
+
+					fmt.Printf("Deleting KRO-owned child resources for instance %q in namespace %s...\n", instanceName, namespace)
+					ownedResult, err := stressutil.DeleteOwnedResourcesByInstancePrefix(
+						context.Background(),
+						clients.Discovery,
+						clients.Dynamic,
+						namespace,
+						instanceName,
+						deleteWorkers,
+						ownedCleanupWorkers,
+						targetGVR,
+					)
+					if err != nil {
+						return err
+					}
+					printDeleteResult("owned child resources", ownedResult)
+				}
+				return nil
+			}
+
+			if !sweepOnly {
+				fmt.Printf("Deleting instances of %s with selector %q in namespace %s...\n", targetName, selector, namespace)
+				result, err := stressutil.DeleteResources(context.Background(), clients.Dynamic, targetGVR, namespace, selector, deleteWorkers)
+				if err != nil {
+					return err
+				}
+				printDeleteResult("instances", result)
+			} else {
+				fmt.Printf("Sweeping child resources for prefix %q in namespace %s without deleting the roots...\n", prefix, namespace)
+			}
 			if cleanupOwnedChildren {
+				fmt.Printf("Deleting child instance resources for prefix %q in namespace %s...\n", prefix, namespace)
+				childResult, err := stressutil.DeleteChildInstanceResourcesByPrefix(
+					context.Background(),
+					clients.Discovery,
+					clients.Dynamic,
+					namespace,
+					prefix,
+					deleteWorkers,
+					ownedCleanupWorkers,
+					targetGVR,
+				)
+				if err != nil {
+					return err
+				}
+				printDeleteResult("child instance resources", childResult)
+
 				fmt.Printf("Deleting KRO-owned child resources for prefix %q in namespace %s...\n", prefix, namespace)
 				ownedResult, err := stressutil.DeleteOwnedResourcesByInstancePrefix(
 					context.Background(),
@@ -568,7 +737,8 @@ func newStressInstanceCommand(root *RootOptions) *cobra.Command {
 					clients.Dynamic,
 					namespace,
 					prefix,
-					50,
+					deleteWorkers,
+					ownedCleanupWorkers,
 					targetGVR,
 				)
 				if err != nil {
@@ -582,9 +752,13 @@ func newStressInstanceCommand(root *RootOptions) *cobra.Command {
 
 	cleanupCmd.Flags().IntVar(&rgdIndex, "rgd-index", 0, "generated RGD index to target")
 	cleanupCmd.Flags().StringVar(&hierarchy, "hierarchy", "", "hierarchy preset whose top-level instances should be deleted")
+	cleanupCmd.Flags().StringVar(&instanceName, "name", "", "exact instance name to delete")
 	cleanupCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "namespace for generated instances")
 	cleanupCmd.Flags().StringVar(&prefix, "prefix", "krostress", "resource prefix to target")
-	cleanupCmd.Flags().BoolVar(&cleanupOwnedChildren, "cleanup-owned-children", false, "also delete KRO-owned child resources that match the instance prefix")
+	cleanupCmd.Flags().BoolVar(&cleanupOwnedChildren, "cleanup-owned-children", false, "also delete child instance CRs and KRO-owned resources that match the instance prefix")
+	cleanupCmd.Flags().BoolVar(&sweepOnly, "sweep-only", false, "skip deleting the selected root instances and only sweep matching child instance CRs and owned resources")
+	cleanupCmd.Flags().IntVar(&deleteWorkers, "delete-workers", 50, "maximum parallel delete requests per resource kind")
+	cleanupCmd.Flags().IntVar(&ownedCleanupWorkers, "owned-cleanup-workers", 16, "maximum number of owned resource kinds to sweep in parallel")
 
 	command.AddCommand(createCmd, cleanupCmd)
 	return command

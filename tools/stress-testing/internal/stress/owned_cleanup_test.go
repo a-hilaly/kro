@@ -67,3 +67,36 @@ func TestFilterOwnedCleanupMatchesUsesInstanceLabelPrefix(t *testing.T) {
 		t.Fatalf("unexpected filtered item %q", filtered[0].GetName())
 	}
 }
+
+func TestFilterOwnedCleanupMatchesDoesNotOvermatchSimilarPrefixes(t *testing.T) {
+	items := []unstructured.Unstructured{
+		{
+			Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "graph-heavy-50-1-platform",
+					"labels": map[string]interface{}{
+						krometadata.InstanceLabel: "graph-heavy-50-1",
+					},
+				},
+			},
+		},
+		{
+			Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "graph-heavy-50-10-platform",
+					"labels": map[string]interface{}{
+						krometadata.InstanceLabel: "graph-heavy-50-10",
+					},
+				},
+			},
+		},
+	}
+
+	filtered := filterOwnedCleanupMatches(items, "graph-heavy-50-1")
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 filtered item, got %d", len(filtered))
+	}
+	if filtered[0].GetName() != "graph-heavy-50-1-platform" {
+		t.Fatalf("unexpected filtered item %q", filtered[0].GetName())
+	}
+}
